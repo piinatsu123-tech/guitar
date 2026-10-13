@@ -1,7 +1,7 @@
 {
   "name": "guitar-fretboard-player",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p .",
-    "e2e": "node e2e/acceptance.mjs"
+    "e2e": "node e2e/acceptance.mjs",
+    "e2e:audio": "node e2e/audio.mjs"
   },
   "dependencies": {
     "react": "19.1.0",

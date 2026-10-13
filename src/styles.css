@@ -1478,3 +1478,41 @@ input.narrow {
 .tl-diagram-box .dot-label {
   font-size: 11px;
 }
+
+/* ---------- 再生 ---------- */
+
+.nav-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.chord-nav .play-btn {
+  min-width: 110px;
+  background: var(--primary);
+  color: var(--primary-text);
+  border-color: var(--primary);
+}
+.chord-nav .play-btn.playing {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.small-toggle {
+  min-height: 40px;
+  font-size: 0.85rem;
+}
+@media (max-width: 480px) {
+  .small-toggle,
+  .nav-current {
+    display: none;
+  }
+}
+
+.app-footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+}

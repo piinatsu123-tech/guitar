@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import type { Song } from "../model/types";
+import { VERSION_LABEL } from "../version";
 import { layoutSong, ticksPerMeasure } from "../music/timeline";
 
 type Props = {
@@ -19,7 +20,9 @@ export function SongList({ songs, onOpen, onCreate, onAddSample, onDuplicate, on
   return (
     <div className="song-list-screen">
       <header className="app-header">
-        <h1>ギター演奏ノート</h1>
+        <h1>
+          ギター演奏ノート <span className="badge">{VERSION_LABEL}</span>
+        </h1>
         <p className="muted small">指板の音名を覚えながら、コード進行・リズム・歌詞を見て演奏するためのアプリ</p>
       </header>
       <div className="btn-row">

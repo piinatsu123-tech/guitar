@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS, type DisplaySettings, type Song } from "./model/types
 import { EditScreen, type EditTab } from "./screens/edit/EditScreen";
 import { PlayScreen } from "./screens/PlayScreen";
 import { SongList } from "./screens/SongList";
+import { VERSION_LABEL } from "./version";
 import { exportSongs, importSongs, loadState, saveState, SCHEMA_VERSION, type AppState } from "./storage/repository";
 
 type Screen =
@@ -151,6 +152,9 @@ export function App() {
         </div>
       )}
       {body}
+      <footer className="app-footer" aria-label="バージョン">
+        ギター演奏ノート {VERSION_LABEL}
+      </footer>
     </div>
   );
 }

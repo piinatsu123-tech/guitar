@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { player } from "../../audio/player";
+import { buildPatternSchedule } from "../../audio/schedule";
+import { soundingNotes } from "../../music/chord";
+import { autoForm, chordNamesInSong, resolveForm } from "../../model/songOps";
 import { ACTION_LABEL, ACTION_SYMBOL, RhythmTimeline } from "../../components/RhythmTimeline";
 import { makeChord, makePattern, newId } from "../../model/factory";
 import { deletePattern } from "../../model/songOps";
@@ -154,6 +158,26 @@ function PatternEditor({
 }) {
   const ts = song.timeSignature;
   const beat = ticksPerBeat(ts);
+  const [previewChord, setPreviewChord] = useState(() => {
+    const user = song.sections.flatMap((s) => s.chords).find((c) => c.rhythmPatternId === pattern.id);
+    return user?.chordName ?? chordNamesInSong(song)[0] ?? "C";
+  });
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => () => player.stop(), []);
+  const togglePreview = async () => {
+    if (player.playing) {
+      player.stop();
+      return;
+    }
+    // 曲で保存したフォームがあればそれを、なければ自動生成のフォームを使う
+    const event = song.sections.flatMap((s) => s.chords).find((c) => c.chordName === previewChord);
+    const form = event ? resolveForm(song, event).form : autoForm(previewChord);
+    if (!form) return;
+    setPlaying(true);
+    await player.play(buildPatternSchedule(pattern, song.tempo, soundingNotes(form.positions), 4), {
+      onEnd: () => setPlaying(false),
+    });
+  };
   const m = ticksPerMeasure(ts);
   const aligned16 = pattern.events.every((e) => e.startTick % SIXTEENTH === 0 && e.durationTicks % SIXTEENTH === 0);
   const aligned8 = pattern.events.every((e) => e.startTick % EIGHTH === 0 && e.durationTicks % EIGHTH === 0);
@@ -352,6 +376,27 @@ function PatternEditor({
       {errors.length > 0 && <p className="warn small">⚠ {errors.join(" / ")}</p>}
 
       <h3 className="block-title">プレビュー</h3>
+      <div className="btn-row">
+        <button
+          type="button"
+          className={`small-btn primary`}
+          onClick={() => void togglePreview()}
+          aria-pressed={playing}
+        >
+          {playing ? "■ 停止" : "▶ 試聴（4回）"}
+        </button>
+        <label className="field inline-field" style={{ margin: 0 }}>
+          <span>コード</span>
+          <select value={previewChord} onChange={(e) => setPreviewChord(e.target.value)}>
+            {[...new Set([...chordNamesInSong(song), "C", "G", "Am", "E"])].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="muted small">♩={song.tempo}</span>
+      </div>
       <RhythmTimeline
         rows={previewRows}
         timeSignature={ts}

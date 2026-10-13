@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { player } from "../audio/player";
+import { buildSongSchedule } from "../audio/schedule";
 import { FormAnalysisView } from "../components/FormAnalysisView";
 import { PianoView } from "../components/PianoView";
 import { ProgressionView } from "../components/ProgressionView";
@@ -39,6 +41,25 @@ export function PlayScreen({
   const current = placed.find((p) => p.chord.id === selectedChordId) ?? placed[0];
   const [range, setRange] = useState<"chord" | "section">("chord");
   const [showSettings, setShowSettings] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [metronome, setMetronome] = useState(false);
+
+  // 画面を離れたら再生を止める
+  useEffect(() => () => player.stop(), []);
+
+  // 選択中のコードから曲の最後まで再生する（選択は再生に追従）
+  const togglePlay = async () => {
+    if (player.playing) {
+      player.stop();
+      return;
+    }
+    if (!current) return;
+    setPlaying(true);
+    await player.play(buildSongSchedule(song, current.globalIndex, { metronome }), {
+      onChord: onSelectChord,
+      onEnd: () => setPlaying(false),
+    });
+  };
 
   // 選択が無効になった場合は先頭を選ぶ
   useEffect(() => {
@@ -56,6 +77,10 @@ export function PlayScreen({
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
+      if (e.key === " " && !(t && t.tagName === "BUTTON")) {
+        e.preventDefault();
+        void togglePlay();
+      }
       if (e.key === "ArrowRight") move(1);
       if (e.key === "ArrowLeft") move(-1);
     };
@@ -291,7 +316,27 @@ export function PlayScreen({
         <button type="button" onClick={() => move(-1)} disabled={!prev}>
           ◀ 前 <span className="nav-chord">{prev?.chord.chordName ?? ""}</span>
         </button>
-        <span className="nav-current">{current ? `${current.globalIndex + 1} / ${placed.length}` : ""}</span>
+        <div className="nav-center">
+          <button
+            type="button"
+            className={`play-btn${playing ? " playing" : ""}`}
+            onClick={() => void togglePlay()}
+            aria-pressed={playing}
+            disabled={!current}
+          >
+            {playing ? "■ 停止" : "▶ 再生"}
+          </button>
+          <label className={`toggle small-toggle${metronome ? " on" : ""}`}>
+            <input type="checkbox" checked={metronome} onChange={(e) => setMetronome(e.target.checked)} />
+            <span aria-hidden className="toggle-mark">
+              {metronome ? "✓" : ""}
+            </span>
+            メトロノーム
+          </label>
+          <span className="nav-current">
+            {current ? `${current.globalIndex + 1} / ${placed.length}` : ""}・♩={song.tempo}
+          </span>
+        </div>
         <button type="button" onClick={() => move(1)} disabled={!next}>
           <span className="nav-chord">{next?.chord.chordName ?? ""}</span> 次 ▶
         </button>

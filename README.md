@@ -10,6 +10,7 @@ npm run dev        # 開発サーバー
 npm test           # ユニットテスト（音高計算・コード判定・フォーム生成・時間軸・歌詞・保存）
 npm run build      # 型チェック + 本番ビルド（dist/）
 npm run e2e        # 受け入れテスト（build 後に実行。Chromium で実際に操作して確認）
+npm run e2e:audio  # 音声の検証（実ブラウザでオフライン描画した音の立ち上がり時刻・音高を測る）
 ```
 
 ## 機能

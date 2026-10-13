@@ -330,6 +330,43 @@ await check("スマートフォン幅でも主要操作が可能（コード選�
   assert.equal(small, 0);
 });
 
+await check("バージョン番号を表示", async () => {
+  const pkg = JSON.parse(await (await import("node:fs/promises")).readFile("package.json", "utf8"));
+  assert.match(
+    await page.locator(".app-footer").textContent(),
+    new RegExp(`v${pkg.version.replace(/\./g, "\\.")} \\(`),
+  );
+});
+
+await check("再生: 選択中のコードから鳴らし、選択がテンポどおりに進む／停止で止まる", async () => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await selectChord("Aメロ", "C");
+  const name = () => page.locator(".current-chord-name").textContent();
+  assert.equal(await name(), "C");
+  await page.getByRole("button", { name: "▶ 再生" }).click();
+  await page.getByRole("button", { name: "■ 停止" }).waitFor();
+  // ♩=96、C は1小節 = 2.5秒。2.0秒ではまだ C、3.0秒では次のコード
+  await page.waitForTimeout(2000);
+  assert.equal(await name(), "C");
+  await page.waitForTimeout(1000);
+  assert.notEqual(await name(), "C");
+  const at = await name();
+  await page.getByRole("button", { name: "■ 停止" }).click();
+  await page.getByRole("button", { name: "▶ 再生" }).waitFor();
+  await page.waitForTimeout(3000);
+  assert.equal(await name(), at, "停止後は進まない");
+});
+
+await check("リズム編集: ▶ 試聴 と停止", async () => {
+  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("tab", { name: "リズム" }).click();
+  await page.getByRole("button", { name: /▶ 試聴/ }).click();
+  await page.getByRole("button", { name: "■ 停止" }).waitFor();
+  await page.getByRole("button", { name: "■ 停止" }).click();
+  await page.getByRole("button", { name: /▶ 試聴/ }).waitFor();
+  await page.getByRole("button", { name: "‹ 演奏画面" }).click();
+});
+
 await check("ページエラーなし", async () => {
   assert.deepEqual(pageErrors, []);
 });
