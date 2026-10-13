@@ -40,3 +40,9 @@ npm run e2e        # 受け入れテスト（build 後に実行。Chromium で�
 - 歌詞の `startTick` はコードの開始位置からの相対位置。文字ごとに永続 ID を持つ。
 - 表示設定は曲ごとではなく全曲共通で保存する。
 - コード名と保存フォームのコード名が一致しない場合は保存フォームを使わず自動生成に戻す（古い TAB が残らない）。
+
+## 公開（GitHub Pages）
+
+`.github/workflows/deploy.yml` が、`main` または `claude/guitar-player-app` への push でテスト・ビルドを行い GitHub Pages に公開します。
+初回のみ、リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** にしてください。
+公開 URL: https://piinatsu123-tech.github.io/guitar/
