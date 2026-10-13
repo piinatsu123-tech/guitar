@@ -8,6 +8,7 @@
   --accent: #d9480f; /* 選択・演奏タイミングのマーク */
   --accent-soft: #fff0e6;
   --primary: #1c6dd0;
+  --lyric: #9c2b23;
   --primary-text: #ffffff;
   --ok: #2b8a3e;
   --warn: #b35c00;
@@ -48,6 +49,7 @@
     --accent: #ff8a4c;
     --accent-soft: #3a261b;
     --primary: #4c9aff;
+    --lyric: #ff9d8f;
     --primary-text: #0b1220;
     --ok: #69db7c;
     --warn: #ffa94d;
@@ -1372,4 +1374,105 @@ input.narrow {
   .current-chord-name {
     font-size: 1.8rem;
   }
+}
+
+/* ---------- 譜面表示（U-FRET 風） ---------- */
+
+.score {
+  margin-bottom: 16px;
+}
+.score-section {
+  margin-bottom: 18px;
+}
+.timeline.score-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 14px 0;
+  padding-left: 0;
+}
+@media (min-width: 640px) {
+  .timeline.score-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 960px) {
+  .timeline.score-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1240px) {
+  .timeline.score-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.score-grid .tl-measure {
+  border-left-width: 1px;
+  border-right-width: 1px;
+  padding-top: 4px;
+}
+.score-grid .tl-measure-num {
+  left: 3px;
+  top: 2px;
+  z-index: 1;
+}
+.tl-diagrams {
+  height: 132px;
+}
+.tl-diagram {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0 4px !important;
+  overflow: hidden;
+}
+.tl-diagram-name {
+  font-weight: 700;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  padding-left: 12px;
+  white-space: nowrap;
+}
+.tl-diagram.continued .tl-diagram-name {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.9rem;
+}
+.tl-diagram.selected .tl-diagram-name {
+  color: var(--accent);
+}
+.tl-diagram-box {
+  width: 100%;
+  max-width: 160px;
+}
+.tl-pianos {
+  height: 74px;
+}
+.tl-piano {
+  padding: 0 4px !important;
+}
+.tl-piano .piano-view {
+  max-width: 170px !important;
+}
+.score .tl-lyrics {
+  height: 38px;
+}
+.score .lyric-char {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--lyric);
+  min-width: 24px;
+  min-height: 36px;
+}
+.score .lyric-char.accent {
+  color: var(--accent);
+}
+.score .tl-ruler {
+  height: 16px;
+}
+.score .tl-tick {
+  line-height: 16px;
+}
+.tl-diagram-box .dot-label {
+  font-size: 11px;
 }

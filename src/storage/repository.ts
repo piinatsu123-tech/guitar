@@ -56,6 +56,8 @@ const ACTIONS = ["downstroke", "upstroke", "pluck", "mute", "none"] as const;
 
 export function normalizeSettings(v: unknown): DisplaySettings {
   const o = isObj(v) ? v : {};
+  // 譜面表示より前の設定（showStrokes がない）では、ピアノは新しい既定（オフ）にそろえる
+  const legacy = isObj(v) && !("showStrokes" in o);
   const bool = (k: keyof DisplaySettings) =>
     typeof o[k] === "boolean" ? (o[k] as boolean) : (DEFAULT_SETTINGS[k] as boolean);
   const mode = (k: "tabLabelMode" | "pianoLabelMode") =>
@@ -63,10 +65,12 @@ export function normalizeSettings(v: unknown): DisplaySettings {
       ? (o[k] as DisplaySettings[typeof k])
       : DEFAULT_SETTINGS[k];
   return {
+    playView: o.playView === "detail" ? "detail" : "score",
     showTab: bool("showTab"),
-    showPiano: bool("showPiano"),
+    showPiano: legacy ? DEFAULT_SETTINGS.showPiano : bool("showPiano"),
     showLyrics: bool("showLyrics"),
     showRhythm: bool("showRhythm"),
+    showStrokes: bool("showStrokes"),
     tabLabelMode: mode("tabLabelMode"),
     pianoLabelMode: mode("pianoLabelMode"),
   };

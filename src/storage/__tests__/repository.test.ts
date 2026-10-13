@@ -46,3 +46,21 @@ describe("保存と読み込み", () => {
     expect({ ...imported, id: song.id }).toEqual(song);
   });
 });
+
+describe("表示設定の移行", () => {
+  it("以前の設定（ストローク項目なし）はピアノを既定のオフにする", async () => {
+    const { normalizeSettings } = await import("../repository");
+    const s = normalizeSettings({
+      showTab: true,
+      showPiano: true,
+      showLyrics: true,
+      showRhythm: true,
+      tabLabelMode: "abc",
+    });
+    expect(s.showPiano).toBe(false);
+    expect(s.showStrokes).toBe(false);
+    expect(s.playView).toBe("score");
+    expect(s.tabLabelMode).toBe("abc");
+    expect(normalizeSettings({ ...s, showPiano: true }).showPiano).toBe(true);
+  });
+});

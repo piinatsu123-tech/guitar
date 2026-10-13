@@ -3,6 +3,7 @@ import { FormAnalysisView } from "../components/FormAnalysisView";
 import { PianoView } from "../components/PianoView";
 import { ProgressionView } from "../components/ProgressionView";
 import { RhythmTimeline } from "../components/RhythmTimeline";
+import { ScoreView } from "../components/ScoreView";
 import { SettingsPanel } from "../components/SettingsPanel";
 import { TabView } from "../components/TabView";
 import { sectionMeasureRows } from "../music/arrangement";
@@ -107,6 +108,25 @@ export function PlayScreen({
           </div>
         </div>
         <div className="header-actions">
+          <div className="segmented" role="radiogroup" aria-label="表示形式">
+            {(
+              [
+                ["score", "譜面"],
+                ["detail", "コード詳細"],
+              ] as const
+            ).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={settings.playView === v}
+                className={settings.playView === v ? "on" : ""}
+                onClick={() => onSettingsChange({ ...settings, playView: v })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             className={`ghost${showSettings ? " active" : ""}`}
@@ -120,130 +140,152 @@ export function PlayScreen({
           </button>
         </div>
       </header>
-      {showSettings && <SettingsPanel settings={settings} onChange={onSettingsChange} compact />}
+      {(showSettings || settings.playView === "score") && (
+        <SettingsPanel settings={settings} onChange={onSettingsChange} compact togglesOnly={!showSettings} />
+      )}
 
-      <div className="play-layout">
-        <div className="play-progression card">
-          <h2 className="card-title">コード進行</h2>
-          <ProgressionView
-            song={song}
-            selectedChordId={current?.chord.id}
-            onSelectChord={onSelectChord}
-            showLyrics={settings.showLyrics}
-          />
-        </div>
+      {settings.playView === "score" ? (
+        <ScoreView
+          song={song}
+          settings={settings}
+          selectedChordId={current?.chord.id}
+          onSelectChord={onSelectChord}
+          onToggleAccent={toggleLyricAccent}
+        />
+      ) : (
+        <div className="play-layout">
+          <div className="play-progression card">
+            <h2 className="card-title">コード進行</h2>
+            <ProgressionView
+              song={song}
+              selectedChordId={current?.chord.id}
+              onSelectChord={onSelectChord}
+              showLyrics={settings.showLyrics}
+            />
+          </div>
 
-        <div className="play-detail">
-          {current ? (
-            <>
-              <div className="card current-chord" aria-live="polite">
-                <div className="current-chord-head">
-                  <div>
-                    <span className="muted small">{current.section.name}</span>
-                    <h2 className="current-chord-name">{current.chord.chordName}</h2>
-                  </div>
-                  <div className="current-chord-info">
-                    {resolved?.form && (
-                      <span className="badge" title="6弦→1弦">
-                        {formShorthand(resolved.form.positions)}
+          <div className="play-detail">
+            {current ? (
+              <>
+                <div className="card current-chord" aria-live="polite">
+                  <div className="current-chord-head">
+                    <div>
+                      <span className="muted small">{current.section.name}</span>
+                      <h2 className="current-chord-name">{current.chord.chordName}</h2>
+                    </div>
+                    <div className="current-chord-info">
+                      {resolved?.form && (
+                        <span className="badge" title="6弦→1弦">
+                          {formShorthand(resolved.form.positions)}
+                        </span>
+                      )}
+                      <span className={`badge ${resolved?.source === "saved" ? "saved" : "auto"}`}>
+                        {resolved?.source === "saved"
+                          ? "保存フォーム"
+                          : resolved?.source === "auto"
+                            ? "自動生成"
+                            : "フォームなし"}
                       </span>
-                    )}
-                    <span className={`badge ${resolved?.source === "saved" ? "saved" : "auto"}`}>
-                      {resolved?.source === "saved"
-                        ? "保存フォーム"
-                        : resolved?.source === "auto"
-                          ? "自動生成"
-                          : "フォームなし"}
-                    </span>
-                    <button type="button" className="small-btn" onClick={() => onEdit("forms")}>
-                      フォーム編集
-                    </button>
-                  </div>
-                </div>
-                {resolved?.analysis && (
-                  <FormAnalysisView analysis={resolved.analysis} labelMode={settings.tabLabelMode} />
-                )}
-                {!resolved?.form && (
-                  <p className="muted">このコード名からフォームを生成できません。編集画面で手動入力してください。</p>
-                )}
-                {resolved?.form && settings.showTab && (
-                  <div className="view-block">
-                    <h3 className="block-title">ギター（TAB譜・指板）</h3>
-                    <TabView positions={resolved.form.positions} labelMode={settings.tabLabelMode} rootPc={rootPc} />
-                  </div>
-                )}
-                {resolved?.form && settings.showPiano && (
-                  <div className="view-block">
-                    <h3 className="block-title">ピアノ鍵盤（実音）</h3>
-                    <PianoView notes={notes} labelMode={settings.pianoLabelMode} rootPc={rootPc} />
-                  </div>
-                )}
-              </div>
-
-              {(settings.showRhythm || settings.showLyrics) && (
-                <div className="card">
-                  <div className="card-title-row">
-                    <h2 className="card-title">
-                      {settings.showRhythm ? "リズム" : ""}
-                      {settings.showRhythm && settings.showLyrics ? "と" : ""}
-                      {settings.showLyrics ? "歌詞" : ""}
-                    </h2>
-                    <div className="segmented small" role="radiogroup" aria-label="表示範囲">
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={range === "chord"}
-                        className={range === "chord" ? "on" : ""}
-                        onClick={() => setRange("chord")}
-                      >
-                        このコード
-                      </button>
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={range === "section"}
-                        className={range === "section" ? "on" : ""}
-                        onClick={() => setRange("section")}
-                      >
-                        セクション全体
+                      <button type="button" className="small-btn" onClick={() => onEdit("forms")}>
+                        フォーム編集
                       </button>
                     </div>
                   </div>
-                  {settings.showRhythm && (
-                    <p className="muted small">
-                      パターン: {pattern?.name ?? "未設定"}
-                      {pattern && current.chord.rhythmPatternId
-                        ? "（コード個別）"
-                        : pattern && current.section.rhythmPatternId
-                          ? "（セクション）"
-                          : pattern
-                            ? "（曲の既定）"
-                            : ""}
-                    </p>
+                  {resolved?.analysis && (
+                    <FormAnalysisView analysis={resolved.analysis} labelMode={settings.tabLabelMode} />
                   )}
-                  <RhythmTimeline
-                    rows={rows}
-                    timeSignature={song.timeSignature}
-                    selectedChordId={current.chord.id}
-                    onSelectChord={onSelectChord}
-                    onToggleAccent={toggleLyricAccent}
-                    showRhythm={settings.showRhythm}
-                    showLyrics={settings.showLyrics}
-                    measureNumberOffset={measureOffset}
-                  />
-                  {settings.showLyrics && (
-                    <p className="muted small">歌詞の文字をタップすると「この位置で弾く」マークを付け外しできます。</p>
+                  {!resolved?.form && (
+                    <p className="muted">このコード名からフォームを生成できません。編集画面で手動入力してください。</p>
+                  )}
+                  {resolved?.form && settings.showTab && (
+                    <div className="view-block">
+                      <h3 className="block-title">ギター（TAB譜・指板）</h3>
+                      <TabView positions={resolved.form.positions} labelMode={settings.tabLabelMode} rootPc={rootPc} />
+                    </div>
+                  )}
+                  {resolved?.form && settings.showPiano && (
+                    <div className="view-block">
+                      <h3 className="block-title">ピアノ鍵盤（実音）</h3>
+                      <PianoView notes={notes} labelMode={settings.pianoLabelMode} rootPc={rootPc} />
+                    </div>
                   )}
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="card">
-              <p className="muted">コードがありません。</p>
-            </div>
-          )}
+
+                {(settings.showRhythm || settings.showStrokes || settings.showLyrics) && (
+                  <div className="card">
+                    <div className="card-title-row">
+                      <h2 className="card-title">
+                        {settings.showRhythm ? "リズム" : ""}
+                        {settings.showRhythm && settings.showLyrics ? "と" : ""}
+                        {settings.showLyrics ? "歌詞" : ""}
+                      </h2>
+                      <div className="segmented small" role="radiogroup" aria-label="表示範囲">
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={range === "chord"}
+                          className={range === "chord" ? "on" : ""}
+                          onClick={() => setRange("chord")}
+                        >
+                          このコード
+                        </button>
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={range === "section"}
+                          className={range === "section" ? "on" : ""}
+                          onClick={() => setRange("section")}
+                        >
+                          セクション全体
+                        </button>
+                      </div>
+                    </div>
+                    {settings.showRhythm && (
+                      <p className="muted small">
+                        パターン: {pattern?.name ?? "未設定"}
+                        {pattern && current.chord.rhythmPatternId
+                          ? "（コード個別）"
+                          : pattern && current.section.rhythmPatternId
+                            ? "（セクション）"
+                            : pattern
+                              ? "（曲の既定）"
+                              : ""}
+                      </p>
+                    )}
+                    <RhythmTimeline
+                      rows={rows}
+                      timeSignature={song.timeSignature}
+                      selectedChordId={current.chord.id}
+                      onSelectChord={onSelectChord}
+                      onToggleAccent={toggleLyricAccent}
+                      display={{
+                        variant: "detail",
+                        showDiagram: false,
+                        showPiano: false,
+                        showLyrics: settings.showLyrics,
+                        showRhythm: settings.showRhythm,
+                        showStrokes: settings.showStrokes,
+                        tabLabelMode: settings.tabLabelMode,
+                        pianoLabelMode: settings.pianoLabelMode,
+                      }}
+                      measureNumberOffset={measureOffset}
+                    />
+                    {settings.showLyrics && (
+                      <p className="muted small">
+                        歌詞の文字をタップすると「この位置で弾く」マークを付け外しできます。
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="card">
+                <p className="muted">コードがありません。</p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <nav className="chord-nav" aria-label="コード移動">
         <button type="button" onClick={() => move(-1)} disabled={!prev}>

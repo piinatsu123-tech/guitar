@@ -352,7 +352,20 @@ function PatternEditor({
       {errors.length > 0 && <p className="warn small">⚠ {errors.join(" / ")}</p>}
 
       <h3 className="block-title">プレビュー</h3>
-      <RhythmTimeline rows={previewRows} timeSignature={ts} showRhythm showLyrics={false} />
+      <RhythmTimeline
+        rows={previewRows}
+        timeSignature={ts}
+        display={{
+          variant: "detail",
+          showDiagram: false,
+          showPiano: false,
+          showLyrics: false,
+          showRhythm: true,
+          showStrokes: true,
+          tabLabelMode: "hidden",
+          pianoLabelMode: "hidden",
+        }}
+      />
 
       <div className="btn-row end">
         <button type="button" className="small-btn" onClick={onDuplicate}>

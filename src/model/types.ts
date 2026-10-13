@@ -82,19 +82,27 @@ export type Song = {
 };
 
 export type DisplaySettings = {
+  /** 演奏画面の表示形式: 譜面（全体を通して見る）／コード詳細 */
+  playView: "score" | "detail";
+  /** コード図（TAB） */
   showTab: boolean;
   showPiano: boolean;
   showLyrics: boolean;
+  /** リズムの音符・休符 */
   showRhythm: boolean;
+  /** ピッキング（ストロークの向き）の位置 */
+  showStrokes: boolean;
   tabLabelMode: NoteLabelMode;
   pianoLabelMode: NoteLabelMode;
 };
 
 export const DEFAULT_SETTINGS: DisplaySettings = {
+  playView: "score",
   showTab: true,
-  showPiano: true,
+  showPiano: false,
   showLyrics: true,
   showRhythm: true,
+  showStrokes: false,
   tabLabelMode: "solfege",
   pianoLabelMode: "abc",
 };

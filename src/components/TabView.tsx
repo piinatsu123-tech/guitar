@@ -48,13 +48,13 @@ export function TabView({
   const gap = compact ? 0 : 18;
   const openW = 34; // 開放・ミュート欄
   const cellW = 52;
-  const rowH = compact ? 22 : 26;
+  const rowH = compact ? 24 : 26;
   const top = 14;
   const boardX = tabW + gap + openW;
   const width = boardX + cellW * fretCount + 8;
   const height = top + rowH * 5 + 30;
   const y = (s: StringNumber) => top + (s - 1) * rowH;
-  const r = compact ? 9.5 : 11;
+  const r = 11;
 
   const label = (s: StringNumber, fret: number) => noteName(midiAt(s, fret)!, labelMode);
   const isRoot = (s: StringNumber, fret: number) => rootPc !== null && pitchClass(midiAt(s, fret)!) === rootPc;

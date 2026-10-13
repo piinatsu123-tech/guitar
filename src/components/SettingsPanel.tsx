@@ -4,6 +4,8 @@ type Props = {
   settings: DisplaySettings;
   onChange: (s: DisplaySettings) => void;
   compact?: boolean;
+  /** 表示のオン・オフだけを出す（音名表記の切替を省く） */
+  togglesOnly?: boolean;
 };
 
 const MODES: { value: NoteLabelMode; label: string }[] = [
@@ -55,30 +57,33 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 }
 
 /** 表示設定。変更は即座に反映・保存される。 */
-export function SettingsPanel({ settings, onChange, compact }: Props) {
+export function SettingsPanel({ settings, onChange, compact, togglesOnly }: Props) {
   const set = <K extends keyof DisplaySettings>(k: K, v: DisplaySettings[K]) => onChange({ ...settings, [k]: v });
   return (
     <div className={`settings-panel${compact ? " compact" : ""}`}>
       <div className="settings-toggles">
-        <Toggle label="TAB譜" checked={settings.showTab} onChange={(v) => set("showTab", v)} />
+        <Toggle label="TAB（コード図）" checked={settings.showTab} onChange={(v) => set("showTab", v)} />
         <Toggle label="ピアノ鍵盤" checked={settings.showPiano} onChange={(v) => set("showPiano", v)} />
-        <Toggle label="リズム" checked={settings.showRhythm} onChange={(v) => set("showRhythm", v)} />
         <Toggle label="歌詞" checked={settings.showLyrics} onChange={(v) => set("showLyrics", v)} />
+        <Toggle label="リズム（音符）" checked={settings.showRhythm} onChange={(v) => set("showRhythm", v)} />
+        <Toggle label="ピッキング（↓↑）" checked={settings.showStrokes} onChange={(v) => set("showStrokes", v)} />
       </div>
-      <div className="settings-modes">
-        <div className="settings-mode">
-          <span>TAB譜の音名</span>
-          <Segmented name="TAB譜の音名" value={settings.tabLabelMode} onChange={(v) => set("tabLabelMode", v)} />
+      {!togglesOnly && (
+        <div className="settings-modes">
+          <div className="settings-mode">
+            <span>TAB譜の音名</span>
+            <Segmented name="TAB譜の音名" value={settings.tabLabelMode} onChange={(v) => set("tabLabelMode", v)} />
+          </div>
+          <div className="settings-mode">
+            <span>鍵盤の音名</span>
+            <Segmented
+              name="ピアノ鍵盤の音名"
+              value={settings.pianoLabelMode}
+              onChange={(v) => set("pianoLabelMode", v)}
+            />
+          </div>
         </div>
-        <div className="settings-mode">
-          <span>鍵盤の音名</span>
-          <Segmented
-            name="ピアノ鍵盤の音名"
-            value={settings.pianoLabelMode}
-            onChange={(v) => set("pianoLabelMode", v)}
-          />
-        </div>
-      </div>
+      )}
     </div>
   );
 }

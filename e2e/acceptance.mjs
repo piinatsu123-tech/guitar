@@ -32,6 +32,9 @@ await page.goto(URL);
 await page.evaluate(() => localStorage.clear());
 await page.reload();
 
+async function selectChordFirst() {
+  await page.locator(".progression .prog-chord").first().click();
+}
 const tabNumbers = () => page.locator(".play-detail .tab-view .tab-num").allTextContents();
 const pianoLabel = () => page.locator(".play-detail .piano-view").getAttribute("aria-label");
 const selectChord = (section, name, nth = 0) =>
@@ -41,6 +44,57 @@ const selectChord = (section, name, nth = 0) =>
     })
     .nth(nth)
     .click();
+
+await check("譜面表示が既定: TAB・歌詞・音符が表示、ピアノ・ピッキングは既定でオフ", async () => {
+  assert.ok((await page.locator(".score .tl-diagram-box .tab-view").count()) > 10);
+  assert.ok((await page.locator(".score .tl-lyrics").count()) > 10);
+  assert.ok((await page.locator(".score .tl-notes").count()) > 10);
+  assert.equal(await page.locator(".score .tl-pianos").count(), 0);
+  assert.equal(await page.locator(".score .tl-strokes").count(), 0);
+});
+
+await check("譜面表示: 各段のオン・オフと上から TAB→ピアノ→歌詞→音符→ピッキング の順", async () => {
+  await page.locator(".settings-panel label", { hasText: "ピアノ鍵盤" }).click();
+  await page.locator(".settings-panel label", { hasText: "ピッキング" }).click();
+  const tops = await page.evaluate(() => {
+    const m = document.querySelector(".score .tl-measure");
+    return [".tl-diagrams", ".tl-pianos", ".tl-lyrics", ".tl-notes", ".tl-strokes"].map(
+      (sel) => m.querySelector(sel).getBoundingClientRect().top,
+    );
+  });
+  for (let i = 1; i < tops.length; i++) assert.ok(tops[i] > tops[i - 1], JSON.stringify(tops));
+  await page.locator(".settings-panel label", { hasText: "TAB" }).click();
+  assert.equal(await page.locator(".score .tl-diagram-box").count(), 0);
+  assert.ok((await page.locator(".score .tl-diagram-name").count()) > 10); // コード名は残る
+  await page.locator(".settings-panel label", { hasText: "TAB" }).click();
+  await page.locator(".settings-panel label", { hasText: "ピアノ鍵盤" }).click();
+  await page.locator(".settings-panel label", { hasText: "ピッキング" }).click();
+});
+
+await check("譜面表示: コード図とコード名の対応（2小節目 G = 320003）、タップで選択", async () => {
+  const g = page.locator(".score .tl-measure").nth(1);
+  assert.equal((await g.locator(".tl-diagram-name").first().textContent()).trim(), "G");
+  assert.deepEqual(
+    (await g.locator(".tl-diagram-box .tab-view").getAttribute("aria-label")).match(/\d弦(開放|\d+フレット|ミュート)/g),
+    ["1弦3フレット", "2弦開放", "3弦開放", "4弦開放", "5弦2フレット", "6弦3フレット"],
+  );
+  await g.locator(".tl-slot").first().click();
+  assert.equal(await g.locator(".tl-slot").first().getAttribute("aria-pressed"), "true");
+  await page.getByRole("button", { name: /次 ▶/ }).click();
+  assert.equal(
+    await page.locator(".score .tl-measure").nth(2).locator(".tl-slot").first().getAttribute("aria-pressed"),
+    "true",
+  );
+});
+
+await check("コード詳細表示へ切替（ピアノ・ピッキングをオン）", async () => {
+  await page.getByRole("radiogroup", { name: "表示形式" }).getByRole("radio", { name: "コード詳細" }).click();
+  await page.getByRole("button", { name: "表示設定" }).click();
+  await page.locator(".settings-panel label", { hasText: "ピアノ鍵盤" }).click();
+  await page.locator(".settings-panel label", { hasText: "ピッキング" }).click();
+  await selectChordFirst();
+  assert.equal(await page.locator(".play-detail .piano-view").count(), 1);
+});
 
 await check("初期表示: C (x32010) の TAB 数字（1弦→6弦）", async () => {
   assert.deepEqual(await tabNumbers(), ["0", "1", "0", "2", "3", "×"]);
@@ -94,13 +148,12 @@ await check("保存フォーム（F 133211）が使われる", async () => {
 });
 
 await check("表示設定: TAB と鍵盤を個別に非表示", async () => {
-  await page.getByRole("button", { name: "表示設定" }).click();
   await page.locator(".settings-panel label", { hasText: "ピアノ鍵盤" }).click();
   assert.equal(await page.locator(".play-detail .piano-view").count(), 0);
   assert.equal(await page.locator(".play-detail .tab-view").count(), 1);
-  await page.locator(".settings-panel label", { hasText: "TAB譜" }).click();
+  await page.locator(".settings-panel label", { hasText: "TAB" }).click();
   assert.equal(await page.locator(".play-detail .tab-view").count(), 0);
-  await page.locator(".settings-panel label", { hasText: "TAB譜" }).click();
+  await page.locator(".settings-panel label", { hasText: "TAB" }).click();
   await page.locator(".settings-panel label", { hasText: "ピアノ鍵盤" }).click();
   assert.equal(await page.locator(".play-detail .piano-view").count(), 1);
 });

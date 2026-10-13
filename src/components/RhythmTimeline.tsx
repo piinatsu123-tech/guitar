@@ -1,6 +1,8 @@
-import { Fragment } from "react";
-import type { MeasureRow } from "../music/arrangement";
+import { Fragment, type ReactNode } from "react";
+import type { MeasureRow, MeasureSlotView } from "../music/arrangement";
+import { soundingNotes, type GuitarStringPosition } from "../music/chord";
 import { groupLyricsByTick } from "../music/lyrics";
+import type { NoteLabelMode } from "../music/pitch";
 import {
   notationForDuration,
   SIXTEENTH,
@@ -9,8 +11,10 @@ import {
   ticksPerBeat,
   type PlacedRhythmEvent,
 } from "../music/timeline";
-import type { GuitarAction, TimeSignature } from "../model/types";
+import type { ChordEvent, GuitarAction, TimeSignature } from "../model/types";
 import { NoteGlyph } from "./NoteGlyph";
+import { PianoView } from "./PianoView";
+import { TabView } from "./TabView";
 
 export const ACTION_SYMBOL: Record<GuitarAction, string> = {
   downstroke: "↓",
@@ -28,46 +32,65 @@ export const ACTION_LABEL: Record<GuitarAction, string> = {
   none: "弾かずに伸ばす",
 };
 
+/** コード図・鍵盤の描画に必要な情報（フォームが解決できなければ null） */
+export type ChordVisual = { positions: GuitarStringPosition[]; rootPc: number | null } | null;
+
+export type TimelineDisplay = {
+  /** "score": 譜面（コード図→鍵盤→歌詞→音符→ストローク）、"detail": 詳細（コード名→音符→ストローク→歌詞） */
+  variant: "score" | "detail";
+  showDiagram: boolean;
+  showPiano: boolean;
+  showLyrics: boolean;
+  showRhythm: boolean;
+  showStrokes: boolean;
+  tabLabelMode: NoteLabelMode;
+  pianoLabelMode: NoteLabelMode;
+};
+
 type Props = {
   rows: MeasureRow[];
   timeSignature: TimeSignature;
+  display: TimelineDisplay;
+  /** コード図・鍵盤を描く場合に必要 */
+  visualFor?: (chord: ChordEvent) => ChordVisual;
   selectedChordId?: string;
   onSelectChord?: (chordId: string) => void;
   onToggleAccent?: (chordId: string, lyricId: string) => void;
-  showRhythm: boolean;
-  showLyrics: boolean;
-  /** 小節番号の表示に使う（セクション内の通し番号の開始値） */
+  /** 小節番号の表示に使う（通し番号の開始値） */
   measureNumberOffset?: number;
+  className?: string;
 };
 
 const pct = (tick: number, len: number) => `${(tick / len) * 100}%`;
+const slotKey = (slot: MeasureSlotView) => `${slot.chord.id}-${slot.start}`;
 
 /**
- * 小節単位のタイムライン。コード名・音符・ストローク・拍目盛り・歌詞を共通の tick 軸に並べる。
+ * 小節単位のタイムライン。コード・鍵盤・歌詞・音符・ストローク・拍目盛りを共通の tick 軸に並べる。
  * 位置はすべて「小節内 tick ÷ 小節長」の割合なので、画面幅が変わっても対応関係は崩れない。
  */
 export function RhythmTimeline({
   rows,
   timeSignature,
+  display,
+  visualFor,
   selectedChordId,
   onSelectChord,
   onToggleAccent,
-  showRhythm,
-  showLyrics,
   measureNumberOffset = 0,
+  className = "",
 }: Props) {
   return (
-    <div className="timeline">
+    <div className={`timeline ${display.variant} ${className}`}>
       {rows.map((row) => (
         <MeasureView
           key={`${row.sectionId}-${row.measureIndex}`}
           row={row}
           ts={timeSignature}
+          display={display}
+          visualFor={visualFor}
           selectedChordId={selectedChordId}
           onSelectChord={onSelectChord}
           onToggleAccent={onToggleAccent}
-          showRhythm={showRhythm}
-          showLyrics={showLyrics}
           number={row.measureIndex + 1 + measureNumberOffset}
         />
       ))}
@@ -78,26 +101,186 @@ export function RhythmTimeline({
 function MeasureView({
   row,
   ts,
+  display,
+  visualFor,
   selectedChordId,
   onSelectChord,
   onToggleAccent,
-  showRhythm,
-  showLyrics,
   number,
 }: {
   row: MeasureRow;
   ts: TimeSignature;
+  display: TimelineDisplay;
+  visualFor?: (chord: ChordEvent) => ChordVisual;
   selectedChordId?: string;
   onSelectChord?: (id: string) => void;
   onToggleAccent?: (chordId: string, lyricId: string) => void;
-  showRhythm: boolean;
-  showLyrics: boolean;
   number: number;
 }) {
   const len = row.length;
   const beat = ticksPerBeat(ts);
   const gridTicks: number[] = [];
   for (let t = 0; t < len; t += SIXTEENTH) gridTicks.push(t);
+  const selected = (slot: MeasureSlotView) => slot.chord.id === selectedChordId;
+
+  const chordNames = (
+    <div className="tl-row tl-chords" key="chords">
+      {row.slots.map((slot) => (
+        <span
+          key={slotKey(slot)}
+          className={`tl-chord${slot.continued ? " continued" : ""}${selected(slot) ? " selected" : ""}`}
+          style={{ left: pct(slot.start, len) }}
+        >
+          {selected(slot) && <span aria-hidden>▶</span>}
+          {slot.continued ? `(${slot.chord.chordName})` : slot.chord.chordName}
+        </span>
+      ))}
+    </div>
+  );
+
+  // 譜面表示: コード名＋コード図（TAB）。小節をまたいで続くコードは名前だけ小さく出す。
+  const diagrams = (
+    <div className="tl-row tl-diagrams" key="diagrams">
+      {row.slots.map((slot) => {
+        const visual = !slot.continued && display.showDiagram ? visualFor?.(slot.chord) : null;
+        return (
+          <span
+            key={slotKey(slot)}
+            className={`tl-diagram${slot.continued ? " continued" : ""}${selected(slot) ? " selected" : ""}`}
+            style={{ left: pct(slot.start, len), width: pct(slot.length, len) }}
+          >
+            <span className="tl-diagram-name">
+              {slot.continued ? `(${slot.chord.chordName})` : slot.chord.chordName}
+            </span>
+            {visual && (
+              <span className="tl-diagram-box">
+                <TabView
+                  positions={visual.positions}
+                  labelMode={display.tabLabelMode}
+                  rootPc={visual.rootPc}
+                  compact
+                  fretCount={4}
+                />
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+
+  const pianos = (
+    <div className="tl-row tl-pianos" key="pianos">
+      {row.slots
+        .filter((slot) => !slot.continued)
+        .map((slot) => {
+          const visual = visualFor?.(slot.chord);
+          return (
+            <span
+              key={slotKey(slot)}
+              className="tl-piano"
+              style={{ left: pct(slot.start, len), width: pct(slot.length, len) }}
+            >
+              {visual && (
+                <PianoView
+                  notes={soundingNotes(visual.positions)}
+                  labelMode={display.pianoLabelMode}
+                  rootPc={visual.rootPc}
+                />
+              )}
+            </span>
+          );
+        })}
+    </div>
+  );
+
+  const notes = (
+    <div className="tl-row tl-notes" key="notes">
+      {row.slots.map((slot) =>
+        slot.pattern ? (
+          <Notes key={slotKey(slot)} events={slot.rhythm} len={len} />
+        ) : (
+          <span key={slotKey(slot)} className="tl-empty" style={{ left: pct(slot.start, len) }}>
+            リズム未設定
+          </span>
+        ),
+      )}
+    </div>
+  );
+
+  const strokes = (
+    <div className="tl-row tl-strokes" key="strokes">
+      {row.slots.flatMap((slot) =>
+        slot.rhythm
+          .filter((e) => e.kind === "note" && !e.clippedStart)
+          .map((e) => (
+            <span
+              key={`${slot.chord.id}-${e.id}`}
+              className={`tl-stroke a-${e.guitarAction}`}
+              style={{ left: pct(e.startTick, len) }}
+              title={ACTION_LABEL[e.guitarAction]}
+              aria-label={ACTION_LABEL[e.guitarAction]}
+            >
+              {ACTION_SYMBOL[e.guitarAction]}
+            </span>
+          )),
+      )}
+    </div>
+  );
+
+  const ruler = (
+    <div className="tl-row tl-ruler" aria-hidden key="ruler">
+      {gridTicks.map((t) => {
+        const l = subdivisionLabel(t, ts);
+        return (
+          <span key={t} className={`tl-tick${t % beat === 0 ? " beat" : ""}`} style={{ left: pct(t, len) }}>
+            {t % beat === 0 || l === "&" ? l : "·"}
+          </span>
+        );
+      })}
+    </div>
+  );
+
+  const lyrics = (
+    <div className="tl-row tl-lyrics" key="lyrics">
+      {row.slots.flatMap((slot) =>
+        groupLyricsByTick(slot.lyrics).map((g) => (
+          <span
+            key={`${slot.chord.id}-${g.startTick}`}
+            className="tl-lyric-group"
+            style={{ left: pct(g.chars[0].measureTick, len) }}
+          >
+            {g.chars.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className={`lyric-char${c.accentMarked ? " accent" : ""}`}
+                onClick={() => onToggleAccent?.(slot.chord.id, c.id)}
+                aria-pressed={c.accentMarked}
+                aria-label={`「${c.text}」${c.accentMarked ? "演奏タイミングのマークあり" : ""}`}
+                disabled={!onToggleAccent}
+              >
+                {c.text}
+              </button>
+            ))}
+          </span>
+        )),
+      )}
+    </div>
+  );
+
+  const d = display;
+  const order: ReactNode[] =
+    d.variant === "score"
+      ? [
+          diagrams,
+          d.showPiano && pianos,
+          d.showLyrics && lyrics,
+          d.showRhythm && notes,
+          d.showStrokes && strokes,
+          (d.showRhythm || d.showStrokes) && ruler,
+        ]
+      : [chordNames, d.showRhythm && notes, d.showStrokes && strokes, ruler, d.showLyrics && lyrics];
 
   return (
     <div className="tl-measure" role="group" aria-label={`${number}小節目`}>
@@ -114,108 +297,20 @@ function MeasureView({
           />
         ))}
       </div>
-      {/* 選択中のコードの範囲 */}
+      {/* コードの範囲（タップで選択） */}
       {row.slots.map((slot) => (
         <button
-          key={`hl-${slot.chord.id}-${slot.start}`}
+          key={`hl-${slotKey(slot)}`}
           type="button"
-          className={`tl-slot${slot.chord.id === selectedChordId ? " selected" : ""}`}
+          className={`tl-slot${selected(slot) ? " selected" : ""}`}
           style={{ left: pct(slot.start, len), width: pct(slot.length, len) }}
           onClick={() => onSelectChord?.(slot.chord.id)}
           aria-label={`${slot.chord.chordName} を選択`}
-          aria-pressed={slot.chord.id === selectedChordId}
+          aria-pressed={selected(slot)}
           tabIndex={onSelectChord ? 0 : -1}
         />
       ))}
-
-      <div className="tl-row tl-chords">
-        {row.slots.map((slot) => (
-          <span
-            key={`${slot.chord.id}-${slot.start}`}
-            className={`tl-chord${slot.continued ? " continued" : ""}${slot.chord.id === selectedChordId ? " selected" : ""}`}
-            style={{ left: pct(slot.start, len) }}
-          >
-            {slot.chord.id === selectedChordId && <span aria-hidden>▶</span>}
-            {slot.continued ? `(${slot.chord.chordName})` : slot.chord.chordName}
-          </span>
-        ))}
-      </div>
-
-      {showRhythm && (
-        <>
-          <div className="tl-row tl-notes">
-            {row.slots.map((slot) =>
-              slot.pattern ? (
-                <Notes key={`${slot.chord.id}-${slot.start}`} events={slot.rhythm} len={len} />
-              ) : (
-                <span
-                  key={`${slot.chord.id}-${slot.start}`}
-                  className="tl-empty"
-                  style={{ left: pct(slot.start, len) }}
-                >
-                  リズム未設定
-                </span>
-              ),
-            )}
-          </div>
-          <div className="tl-row tl-strokes">
-            {row.slots.flatMap((slot) =>
-              slot.rhythm
-                .filter((e) => e.kind === "note" && !e.clippedStart)
-                .map((e) => (
-                  <span
-                    key={`${slot.chord.id}-${e.id}`}
-                    className={`tl-stroke a-${e.guitarAction}`}
-                    style={{ left: pct(e.startTick, len) }}
-                    title={ACTION_LABEL[e.guitarAction]}
-                    aria-label={ACTION_LABEL[e.guitarAction]}
-                  >
-                    {ACTION_SYMBOL[e.guitarAction]}
-                  </span>
-                )),
-            )}
-          </div>
-        </>
-      )}
-
-      <div className="tl-row tl-ruler" aria-hidden>
-        {gridTicks.map((t) => {
-          const l = subdivisionLabel(t, ts);
-          return (
-            <span key={t} className={`tl-tick${t % beat === 0 ? " beat" : ""}`} style={{ left: pct(t, len) }}>
-              {t % beat === 0 || l === "&" ? l : "·"}
-            </span>
-          );
-        })}
-      </div>
-
-      {showLyrics && (
-        <div className="tl-row tl-lyrics">
-          {row.slots.flatMap((slot) =>
-            groupLyricsByTick(slot.lyrics).map((g) => (
-              <span
-                key={`${slot.chord.id}-${g.startTick}`}
-                className="tl-lyric-group"
-                style={{ left: pct(g.chars[0].measureTick, len) }}
-              >
-                {g.chars.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    className={`lyric-char${c.accentMarked ? " accent" : ""}`}
-                    onClick={() => onToggleAccent?.(slot.chord.id, c.id)}
-                    aria-pressed={c.accentMarked}
-                    aria-label={`「${c.text}」${c.accentMarked ? "演奏タイミングのマークあり" : ""}`}
-                    disabled={!onToggleAccent}
-                  >
-                    {c.text}
-                  </button>
-                ))}
-              </span>
-            )),
-          )}
-        </div>
-      )}
+      {order}
     </div>
   );
 }
