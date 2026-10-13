@@ -1,0 +1,1375 @@
+:root {
+  --bg: #f6f5f1;
+  --surface: #ffffff;
+  --surface-2: #f0eee8;
+  --text: #1f2328;
+  --muted: #6a6f76;
+  --border: #d9d6cd;
+  --accent: #d9480f; /* 選択・演奏タイミングのマーク */
+  --accent-soft: #fff0e6;
+  --primary: #1c6dd0;
+  --primary-text: #ffffff;
+  --ok: #2b8a3e;
+  --warn: #b35c00;
+  --danger: #c92a2a;
+  --dot: #1f2328;
+  --dot-text: #ffffff;
+  --root: #c2410c;
+  --string: #8a8378;
+  --fret: #b9b3a6;
+  --key-white: #ffffff;
+  --key-black: #2b2b2b;
+  --key-on: #ffb380;
+  --key-on-black: #e8590c;
+  --radius: 10px;
+  --tap: 44px;
+  color-scheme: light dark;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Hiragino Sans",
+    "Noto Sans JP",
+    "Yu Gothic UI",
+    Meiryo,
+    sans-serif;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a;
+    --surface: #1e2125;
+    --surface-2: #272b30;
+    --text: #e8e6e1;
+    --muted: #9aa0a6;
+    --border: #3a3f45;
+    --accent: #ff8a4c;
+    --accent-soft: #3a261b;
+    --primary: #4c9aff;
+    --primary-text: #0b1220;
+    --ok: #69db7c;
+    --warn: #ffa94d;
+    --danger: #ff6b6b;
+    --dot: #e8e6e1;
+    --dot-text: #15171a;
+    --root: #ff8a4c;
+    --string: #8f8a80;
+    --fret: #5a5750;
+    --key-white: #e9e7e2;
+    --key-black: #111214;
+    --key-on: #ffa36b;
+    --key-on-black: #ff7a33;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.25;
+}
+
+code {
+  background: var(--surface-2);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 12px 12px 88px;
+}
+
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 0.82rem;
+}
+.warn {
+  color: var(--warn);
+}
+.ok {
+  color: var(--ok);
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.save-error {
+  background: var(--danger);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+
+/* ---------- 汎用部品 ---------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  font-size: 1rem;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.card-title-row .card-title {
+  margin-bottom: 0;
+}
+
+.block-title {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+  margin: 10px 0 4px;
+}
+
+.primary,
+.ghost,
+.small-btn,
+.icon-btn,
+.chip,
+.add-btn {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  min-height: var(--tap);
+  padding: 0 14px;
+}
+
+.primary {
+  background: var(--primary);
+  color: var(--primary-text);
+  border-color: var(--primary);
+  font-weight: 600;
+}
+
+.ghost {
+  background: transparent;
+}
+.ghost.active {
+  background: var(--surface-2);
+}
+
+.small-btn {
+  min-height: 38px;
+  padding: 0 10px;
+  font-size: 0.9rem;
+}
+.small-btn.primary {
+  background: var(--primary);
+  color: var(--primary-text);
+}
+.danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+
+.icon-btn {
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+}
+
+.add-btn {
+  width: 100%;
+  border-style: dashed;
+  margin-bottom: 12px;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+.btn-row.end {
+  justify-content: flex-end;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.chip {
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 0.9rem;
+  border-radius: 999px;
+}
+.chip.big {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  font-weight: 700;
+}
+.chip.on {
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+  font-weight: 700;
+}
+.chip.add {
+  border-style: dashed;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-weight: 500;
+}
+.badge.saved {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.badge.auto {
+  border-style: dashed;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.segmented button {
+  border: 0;
+  background: var(--surface);
+  min-height: 38px;
+  padding: 0 12px;
+  border-right: 1px solid var(--border);
+}
+.segmented button:last-child {
+  border-right: 0;
+}
+.segmented button.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+.segmented.small button {
+  min-height: 34px;
+  font-size: 0.85rem;
+  padding: 0 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.field > span:first-child {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.inline-field {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--surface);
+  max-width: 100%;
+}
+textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+input.narrow {
+  width: 72px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 4px 16px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 720px) {
+  .form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  user-select: none;
+}
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.toggle-mark {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-radius: 4px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.toggle.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.toggle.on .toggle-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.toggle:has(input:focus-visible) {
+  outline: 3px solid var(--primary);
+}
+.toggle-inline {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 40px;
+}
+.toggle-inline input {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---------- ヘッダー ---------- */
+
+.app-header {
+  margin: 8px 0 16px;
+}
+.app-header h1 {
+  font-size: 1.5rem;
+}
+
+.song-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.song-title-block {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.song-title-block h1 {
+  font-size: 1.3rem;
+  overflow-wrap: anywhere;
+}
+.song-meta {
+  display: flex;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.unsaved {
+  color: var(--warn);
+  font-weight: 600;
+}
+.header-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.settings-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.settings-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+.settings-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.settings-mode > span {
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-width: 6.5em;
+}
+
+/* ---------- 演奏画面 ---------- */
+
+.play-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 12px;
+}
+
+.play-progression .progression {
+  max-height: 42vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (min-width: 1000px) {
+  .play-layout {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    align-items: start;
+  }
+  .play-progression {
+    position: sticky;
+    top: 12px;
+  }
+  .play-progression .progression {
+    max-height: calc(100vh - 160px);
+  }
+}
+
+.prog-section {
+  margin-bottom: 12px;
+}
+.prog-section-name {
+  font-size: 0.85rem;
+  display: inline-block;
+  background: var(--surface-2);
+  border-left: 4px solid var(--primary);
+  padding: 2px 8px;
+  margin-bottom: 4px;
+}
+.prog-measures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-left: 2px solid var(--text);
+}
+@media (min-width: 560px) {
+  .prog-measures {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.prog-measure {
+  position: relative;
+  display: flex;
+  border-right: 2px solid var(--text);
+  border-bottom: 1px solid var(--border);
+  min-height: 64px;
+}
+.prog-measure-num {
+  position: absolute;
+  top: 1px;
+  left: 3px;
+  font-size: 0.6rem;
+  color: var(--muted);
+  pointer-events: none;
+}
+.prog-chord {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 2px solid transparent;
+  background: transparent;
+  text-align: left;
+  padding: 12px 4px 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 6px;
+}
+.prog-chord:hover {
+  background: var(--surface-2);
+}
+.prog-chord.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.prog-chord-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.prog-chord.selected .prog-chord-name {
+  color: var(--accent);
+}
+.prog-chord .cont {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.prog-lyric {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.accent {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.current-chord-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.current-chord-name {
+  font-size: 2.2rem;
+  color: var(--accent);
+}
+.current-chord-info {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.analysis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: center;
+  font-size: 0.85rem;
+  padding: 6px 8px;
+  border-radius: 8px;
+  margin: 8px 0;
+  background: var(--surface-2);
+}
+.analysis.ok .analysis-status {
+  color: var(--ok);
+  font-weight: 700;
+}
+.analysis.bad {
+  border: 1px solid var(--warn);
+}
+.analysis.bad .analysis-status,
+.analysis-problems {
+  color: var(--warn);
+  font-weight: 600;
+}
+.analysis-tones {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.tone {
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.tone.absent {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.view-block {
+  margin-top: 4px;
+}
+
+.chord-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(6px);
+  border-top: 1px solid var(--border);
+  z-index: 10;
+}
+.chord-nav button {
+  min-height: 48px;
+  min-width: 120px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-weight: 600;
+}
+.nav-chord {
+  color: var(--accent);
+  font-weight: 700;
+}
+.nav-current {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* ---------- TAB 譜・指板 ---------- */
+
+.tab-view {
+  width: 100%;
+  height: auto;
+  display: block;
+  font-family: system-ui, sans-serif;
+}
+.tab-line {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+.tab-clef {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--muted);
+}
+.tab-num-bg {
+  fill: var(--surface);
+}
+.candidate .tab-num-bg {
+  fill: transparent;
+}
+.tab-num {
+  font-size: 14px;
+  font-weight: 700;
+  fill: var(--text);
+}
+.string-num {
+  font-size: 10px;
+  fill: var(--muted);
+}
+.nut {
+  stroke: var(--text);
+  stroke-width: 5;
+}
+.fret-line {
+  stroke: var(--fret);
+  stroke-width: 1.5;
+}
+.string-line {
+  stroke: var(--string);
+}
+.inlay {
+  fill: var(--surface-2);
+  stroke: var(--border);
+}
+.fret-num {
+  font-size: 11px;
+  fill: var(--muted);
+}
+.fret-dot {
+  fill: var(--dot);
+}
+.fret-dot.root {
+  fill: var(--root);
+  stroke: var(--text);
+  stroke-width: 2.5;
+}
+.open-dot {
+  fill: var(--surface);
+  stroke: var(--dot);
+  stroke-width: 2;
+}
+.open-dot.root {
+  stroke: var(--root);
+  stroke-width: 3.5;
+}
+.dot-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  fill: var(--dot-text);
+}
+.dot-label.open {
+  fill: var(--text);
+}
+.mute-mark {
+  font-size: 16px;
+  font-weight: 700;
+  fill: var(--muted);
+}
+.out-of-view {
+  font-size: 10px;
+  fill: var(--warn);
+}
+.cell-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+.cell-hit:hover {
+  fill: color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+/* ---------- ピアノ ---------- */
+
+.piano-view {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.key-white {
+  fill: var(--key-white);
+  stroke: #777;
+  stroke-width: 0.8;
+}
+.key-black {
+  fill: var(--key-black);
+  stroke: #000;
+  stroke-width: 0.6;
+}
+.key-white.on {
+  fill: var(--key-on);
+}
+.key-black.on {
+  fill: var(--key-on-black);
+}
+.key-marker {
+  fill: #1f2328;
+  stroke: #fff;
+  stroke-width: 1.2;
+}
+.key-marker.root {
+  fill: #c2410c;
+  stroke-width: 2;
+}
+.key-label {
+  font-size: 7.5px;
+  font-weight: 700;
+  fill: #1f2328;
+}
+.key-label.on-black {
+  fill: #fff;
+}
+.key-strings {
+  font-size: 9px;
+  fill: var(--text);
+}
+.octave-label {
+  font-size: 8px;
+  fill: var(--muted);
+}
+
+/* ---------- リズム・歌詞のタイムライン ---------- */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tl-measure {
+  position: relative;
+  border-left: 2px solid var(--text);
+  border-right: 2px solid var(--text);
+  padding: 0;
+  background: var(--surface);
+}
+.tl-measure-num {
+  position: absolute;
+  top: -1px;
+  left: -16px;
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+.timeline {
+  padding-left: 16px;
+}
+
+.tl-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.tl-gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dotted color-mix(in srgb, var(--border) 60%, transparent);
+}
+.tl-gridline.half {
+  border-left: 1px dashed var(--border);
+}
+.tl-gridline.beat {
+  border-left: 1px solid var(--border);
+}
+
+.tl-slot {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+.tl-slot.selected {
+  background: color-mix(in srgb, var(--accent-soft) 80%, transparent);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tl-row {
+  position: relative;
+  pointer-events: none;
+}
+.tl-row > * {
+  position: absolute;
+  top: 0;
+  padding-left: 2px;
+}
+.tl-chords {
+  height: 22px;
+}
+.tl-chord {
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.tl-chord.continued {
+  color: var(--muted);
+  font-weight: 400;
+}
+.tl-chord.selected {
+  color: var(--accent);
+}
+.tl-notes {
+  height: 34px;
+}
+.tl-note {
+  width: 18px;
+  height: 34px;
+}
+.note-glyph {
+  width: 15px;
+  height: 30px;
+  display: block;
+}
+.glyph-fill {
+  fill: var(--text);
+}
+.glyph-stroke {
+  stroke: var(--text);
+  fill: none;
+}
+.note-glyph.rest .glyph-fill {
+  fill: var(--muted);
+}
+.glyph-q {
+  font-size: 8px;
+  fill: var(--warn);
+}
+.tl-tie {
+  top: 28px !important;
+  height: 7px;
+  border-bottom: 1.5px solid var(--text);
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+  padding: 0 !important;
+}
+.tl-empty {
+  font-size: 0.75rem;
+  color: var(--muted);
+  top: 8px !important;
+}
+.tl-strokes {
+  height: 26px;
+}
+.tl-stroke {
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 26px;
+}
+.tl-stroke.a-downstroke,
+.tl-stroke.a-upstroke {
+  color: var(--primary);
+}
+.tl-stroke.a-none {
+  color: var(--muted);
+  font-weight: 400;
+}
+.tl-ruler {
+  height: 18px;
+  border-top: 1px solid var(--border);
+}
+.tl-tick {
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 18px;
+}
+.tl-tick.beat {
+  color: var(--text);
+  font-weight: 700;
+}
+.tl-lyrics {
+  height: 32px;
+  pointer-events: none;
+}
+.tl-lyric-group {
+  display: flex;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+.lyric-char {
+  border: 0;
+  background: transparent;
+  padding: 2px 1px;
+  min-width: 22px;
+  min-height: 30px;
+  font-size: 1.05rem;
+  line-height: 1;
+  border-radius: 4px;
+  text-align: center;
+}
+.lyric-char:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.lyric-char.accent {
+  background: var(--accent-soft);
+  box-shadow: inset 0 -3px 0 var(--accent);
+  text-decoration: none;
+}
+
+/* ---------- 編集画面 ---------- */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+  scrollbar-width: thin;
+}
+.tabs button {
+  border: 0;
+  background: transparent;
+  min-height: var(--tap);
+  padding: 0 14px;
+  white-space: nowrap;
+  border-bottom: 3px solid transparent;
+}
+.tabs button.on {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.section-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.section-name-input {
+  font-weight: 700;
+  font-size: 1.05rem;
+  flex: 1 1 140px;
+}
+.bulk {
+  margin: 6px 0 10px;
+}
+.bulk summary {
+  cursor: pointer;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  color: var(--primary);
+}
+.chord-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.chord-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+.chord-index {
+  width: 1.6em;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: right;
+}
+.chord-name-input {
+  width: 96px;
+  font-weight: 700;
+}
+.chord-name-input.invalid {
+  border-color: var(--warn);
+  border-width: 2px;
+}
+.beats {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.beats input {
+  width: 70px;
+}
+.quick-lengths {
+  display: inline-flex;
+  gap: 4px;
+}
+.row-note {
+  flex-basis: 100%;
+  padding-left: 2em;
+}
+.section-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.fret-window {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.string-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 8px 0;
+}
+@media (min-width: 720px) {
+  .string-inputs {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+.string-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+.string-input input {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+  font-weight: 700;
+}
+.gen-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.gen-options .field {
+  margin: 0;
+}
+.candidates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.candidate {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+.candidate.on {
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+.candidate-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.step-grid {
+  display: grid;
+  gap: 2px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin: 8px 0;
+}
+.step {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  min-height: 72px;
+  padding: 2px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 26px;
+}
+.step.beat {
+  border-left: 2px solid var(--text);
+}
+.step.note {
+  background: var(--surface-2);
+}
+.step.hold {
+  background: var(--surface-2);
+  border-left-style: dotted;
+}
+.step.cursor {
+  outline: 3px solid var(--accent);
+  outline-offset: -2px;
+}
+.step-state {
+  font-size: 0.9rem;
+}
+.step.rest .step-state {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.step-action {
+  font-weight: 800;
+  color: var(--primary);
+  min-height: 1.2em;
+}
+.step-label {
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+.step-tools {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
+
+.lyrics-section {
+  margin-bottom: 8px;
+}
+.lyric-rows {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.lyric-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 0;
+}
+.lyric-row .chip {
+  min-width: 64px;
+  font-weight: 700;
+}
+.lyric-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.lyric-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.lyric-chip {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  font-size: 1.15rem;
+}
+.lyric-chip.on {
+  border: 3px solid var(--primary);
+}
+.lyric-chip.accent {
+  color: var(--accent);
+  font-weight: 700;
+  background: var(--accent-soft);
+  box-shadow: inset 0 -4px 0 var(--accent);
+}
+.timing-grid-wrap {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.timing-grid {
+  display: grid;
+  gap: 1px;
+}
+.timing-cell {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  min-height: 64px;
+  padding: 2px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 4px;
+}
+.timing-cell.beat {
+  border-left: 2px solid var(--muted);
+}
+.timing-cell.bar {
+  border-left: 3px solid var(--text);
+}
+.timing-cell.on {
+  background: color-mix(in srgb, var(--primary) 18%, var(--surface));
+}
+.timing-cell.out {
+  background: var(--surface-2);
+  border-style: dashed;
+}
+.timing-chars {
+  display: flex;
+  flex-direction: column;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+.timing-chars .sel {
+  outline: 2px solid var(--primary);
+  border-radius: 3px;
+}
+.timing-label {
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+/* ---------- 曲一覧 ---------- */
+
+.song-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+.song-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.song-open {
+  flex: 1 1 240px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  min-height: var(--tap);
+  border-radius: 8px;
+}
+.song-open:hover {
+  background: var(--surface-2);
+}
+.song-item-title {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+@media (max-width: 480px) {
+  .app {
+    padding: 8px 8px 84px;
+  }
+  .card {
+    padding: 10px;
+  }
+  .chord-nav button {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+  .current-chord-name {
+    font-size: 1.8rem;
+  }
+}
