@@ -80,7 +80,7 @@ export function RhythmTimeline({
   className = "",
 }: Props) {
   return (
-    <div className={`timeline ${display.variant} ${className}`}>
+    <div className={`timeline tl-${display.variant} ${className}`}>
       {rows.map((row) => (
         <MeasureView
           key={`${row.sectionId}-${row.measureIndex}`}

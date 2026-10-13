@@ -4,9 +4,24 @@ import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 import assert from "node:assert/strict";
 
-const PORT = 4179;
+import net from "node:net";
+
+// 空いているポートを使う（前回の実行が残っていても衝突しない）
+const PORT = await new Promise((resolve) => {
+  const srv = net.createServer().listen(0, () => {
+    const { port } = srv.address();
+    srv.close(() => resolve(port));
+  });
+});
 const URL = `http://localhost:${PORT}/`;
-const server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], { stdio: "pipe" });
+const server = spawn(
+  process.execPath,
+  ["node_modules/vite/bin/vite.js", "preview", "--port", String(PORT), "--strictPort"],
+  { stdio: "pipe" },
+);
+const stopServer = () => server.exitCode === null && server.kill();
+process.on("exit", stopServer);
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(130));
 await new Promise((resolve, reject) => {
   server.stdout.on("data", (d) => String(d).includes("Local") && resolve());
   server.on("exit", (c) => reject(new Error(`preview exited ${c}`)));
