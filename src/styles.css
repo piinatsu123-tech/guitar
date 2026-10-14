@@ -1963,3 +1963,6 @@ input.narrow {
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 8px 0;
 }
+.sheet-section .section-rhythm {
+  margin: 10px 0 4px;
+}

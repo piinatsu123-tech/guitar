@@ -140,6 +140,10 @@ await check("リズム譜: セクションに表示され、▶ で頭から1回
   const r = page.getByRole("region", { name: "Aメロのリズム" });
   assert.ok((await r.locator(".rhythm-staff .tl-measure").count()) >= 1);
   assert.ok((await r.locator(".tl-stroke").count()) >= 1);
+  // 歌詞の下に置く（セクションの最後の行より下）
+  const lastLine = await section("Aメロ").locator(".sheet-line").last().boundingBox();
+  const staff = await r.boundingBox();
+  assert.ok(staff.y >= lastLine.y + lastLine.height - 1, JSON.stringify([lastLine, staff]));
   // リズム譜のないセクションには、見るだけのときは何も出ない
   assert.equal(await page.getByRole("region", { name: "Bメロのリズム" }).count(), 0);
   const bars = await r.locator(".rhythm-staff .tl-measure").count();

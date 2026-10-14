@@ -168,7 +168,6 @@ export function LyricSheet({ song, settings, onSongChange, editing, startWithPas
             ) : (
               <h2 className="prog-section-name">{section.name}</h2>
             )}
-            {sec && <SectionRhythmBlock song={song} section={sec} editing={editing} onSongChange={onSongChange} />}
             {section.lines.map((ln, li) => {
               if (lineEdit && lineEdit.section === si && lineEdit.line === li) {
                 return (
@@ -256,6 +255,8 @@ export function LyricSheet({ song, settings, onSongChange, editing, startWithPas
                 </div>
               );
             })}
+            {/* リズム譜は歌詞の下に置く（コードとは連動しない） */}
+            {sec && <SectionRhythmBlock song={song} section={sec} editing={editing} onSongChange={onSongChange} />}
           </section>
         );
       })}
