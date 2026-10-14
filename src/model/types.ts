@@ -61,11 +61,22 @@ export type ChordEvent = {
   lyrics: LyricEvent[];
 };
 
+/**
+ * 小節に直接入力したリズム。パターンの割り当てより優先される。
+ * measure はセクション内の小節番号（0 始まり）、events の位置は小節頭からの tick。
+ * コードではなく「曲のその位置」に結びつく（コードを差し替えてもリズムは残る）。
+ */
+export type MeasureRhythm = {
+  measure: number;
+  events: RhythmEvent[];
+};
+
 export type Section = {
   id: string;
   name: string;
   rhythmPatternId?: string;
   chords: ChordEvent[];
+  measureRhythms?: MeasureRhythm[];
 };
 
 export type Song = {

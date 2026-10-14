@@ -131,6 +131,8 @@ export async function renderOffline(schedule: Schedule, sampleRate = 22050, tail
   return out.getChannelData(0);
 }
 
+export type PlayerOwner = "song" | "recording" | "other";
+
 const LOOKAHEAD = 0.3; // 秒
 const TIMER_MS = 50;
 
@@ -145,6 +147,8 @@ export class GuitarPlayer {
   private timeouts: ReturnType<typeof setTimeout>[] = [];
   private stopFn: (() => void) | null = null;
   private renderer: VoiceRenderer | null = null;
+  /** いま何のために鳴らしているか（タップ録音中に、別の操作が再生を奪わないように） */
+  owner: PlayerOwner | null = null;
 
   get playing() {
     return this.stopFn !== null;
@@ -153,9 +157,10 @@ export class GuitarPlayer {
   /** ユーザー操作（クリック）の中で呼ぶこと（iOS などの自動再生制限のため） */
   async play(
     schedule: Schedule,
-    handlers: { onChord?: (id: string) => void; onEnd?: () => void } = {},
+    handlers: { onChord?: (id: string) => void; onEnd?: () => void; owner?: PlayerOwner } = {},
   ): Promise<{ start: number }> {
     this.stop();
+    this.owner = handlers.owner ?? "other";
     if (!this.ctx) this.ctx = new AudioContext();
     const ctx = this.ctx;
     if (ctx.state !== "running") await ctx.resume();
@@ -235,6 +240,7 @@ export class GuitarPlayer {
     }
     this.master = null;
     this.renderer = null;
+    this.owner = null;
   }
 }
 

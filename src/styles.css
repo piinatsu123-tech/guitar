@@ -1588,3 +1588,66 @@ input.narrow {
   font-weight: 700;
   color: var(--accent);
 }
+
+/* ---------- 譜面でのリズム編集 ---------- */
+
+.tl-measure-select {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.tl-measure-select:hover {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+.tl-measure.measure-selected {
+  outline: 3px solid var(--primary);
+  outline-offset: -3px;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+}
+.tl-custom {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  z-index: 1;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  padding: 0 3px;
+  background: var(--surface);
+}
+.measure-panel {
+  position: sticky;
+  bottom: 72px;
+  z-index: 9;
+  max-height: 58vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin: 8px 0;
+  box-shadow: 0 -6px 24px rgb(0 0 0 / 0.15);
+}
+.measure-panel.hint {
+  font-size: 0.9rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+.measure-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  justify-content: space-between;
+}
+.small-tabs {
+  margin: 6px 0;
+}
+.small-tabs button {
+  min-height: 38px;
+}

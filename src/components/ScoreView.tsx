@@ -10,13 +10,24 @@ type Props = {
   selectedChordId?: string;
   onSelectChord: (id: string) => void;
   onToggleAccent: (chordId: string, lyricId: string) => void;
+  /** リズム編集：選択中の小節（曲全体の通し番号、両端を含む）と小節タップ */
+  rhythmEdit?: { from: number; to: number } | null | undefined;
+  onMeasureClick?: (globalIndex: number) => void;
 };
 
 /**
  * 譜面表示（U-FRET 風）。曲全体を小節ごとに並べ、各小節でコード図・鍵盤・歌詞・音符・ピッキングを
  * 共通の時間軸に積み重ねて表示する。大きな画面で弾きながら見ることを想定。
  */
-export function ScoreView({ song, settings, selectedChordId, onSelectChord, onToggleAccent }: Props) {
+export function ScoreView({
+  song,
+  settings,
+  selectedChordId,
+  onSelectChord,
+  onToggleAccent,
+  rhythmEdit,
+  onMeasureClick,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   const sections = useMemo(() => {
@@ -76,6 +87,17 @@ export function ScoreView({ song, settings, selectedChordId, onSelectChord, onTo
             onSelectChord={onSelectChord}
             onToggleAccent={onToggleAccent}
             measureNumberOffset={offset}
+            measureSelection={
+              onMeasureClick
+                ? {
+                    isSelected: (row) =>
+                      !!rhythmEdit &&
+                      offset + row.measureIndex >= rhythmEdit.from &&
+                      offset + row.measureIndex <= rhythmEdit.to,
+                    onClick: (row) => onMeasureClick(offset + row.measureIndex),
+                  }
+                : undefined
+            }
           />
         </section>
       ))}

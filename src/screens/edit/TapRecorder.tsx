@@ -12,15 +12,22 @@ import {
 } from "../../music/tapRhythm";
 import { EIGHTH, SIXTEENTH } from "../../music/timeline";
 import { newId } from "../../model/factory";
-import type { GuitarAction, RhythmEvent, RhythmPattern, TimeSignature } from "../../model/types";
+import type { GuitarAction, RhythmEvent, TimeSignature } from "../../model/types";
 
 type Props = {
-  pattern: RhythmPattern;
+  /** 今のリズム（録音前の状態。「元に戻す」と、録音する小節数の初期値に使う） */
+  current: { events: RhythmEvent[]; lengthTicks: number };
   tempo: number;
   timeSignature: TimeSignature;
   /** タップしたときに鳴らすコードの音 */
   notes: SoundingNote[];
+  /** 位置ごとに鳴らすコードを変える場合（曲の小節に録音するとき）。tick は録音範囲の頭から */
+  notesAt?: (tick: number) => SoundingNote[];
   measureTicks: number;
+  /** 録音する長さを固定する（譜面で選んだ小節に録音するとき） */
+  fixedLengthTicks?: number;
+  /** 「元に戻す」を親で行う場合 */
+  onUndo?: () => void;
   /** 録音した長さ（小節数×小節長）でパターンを置き換える。gridTicks は採譜に使った細かさ */
   onApply: (events: RhythmEvent[], lengthTicks: number, gridTicks?: number) => void;
 };
@@ -55,13 +62,24 @@ const SPEEDS = [
 
 /**
  * クリックに合わせてタップしたリズムを採譜する。
- * 1小節のカウントインのあと、選んだ小節数だけ続けて録音し、グリッドに寄せてパターン（長さも）を置き換える。
+ * 1小節のカウントインのあと、指定の小節数だけ続けて録音し、グリッドに寄せて採譜する。
+ * パターン編集では録音する小節数を選び、譜面での編集では選んだ小節の長さに固定する。
  */
 const BAR_CHOICES = [1, 2, 4, 8];
 
 type Resolution = "auto" | typeof EIGHTH | typeof SIXTEENTH;
 
-export function TapRecorder({ pattern, tempo, timeSignature, notes, measureTicks, onApply }: Props) {
+export function TapRecorder({
+  current,
+  tempo,
+  timeSignature,
+  notes,
+  notesAt,
+  measureTicks,
+  fixedLengthTicks,
+  onUndo,
+  onApply,
+}: Props) {
   // 採譜の細かさ。自動なら叩いたリズムから 8分／16分 を決める
   const [resolution, setResolution] = useState<Resolution>("auto");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -73,10 +91,10 @@ export function TapRecorder({ pattern, tempo, timeSignature, notes, measureTicks
   const [undo, setUndo] = useState<{ events: RhythmEvent[]; lengthTicks: number } | null>(null);
   // 何小節まとめて録音するか（初期値は今のパターンの長さ）
   const [bars, setBars] = useState(() => {
-    const n = Math.round(pattern.lengthTicks / measureTicks);
+    const n = Math.round(current.lengthTicks / measureTicks);
     return BAR_CHOICES.includes(n) ? n : 1;
   });
-  const recordTicks = bars * measureTicks;
+  const recordTicks = fixedLengthTicks ?? bars * measureTicks;
   const session = useRef<{ recordStart: number; taps: Tap[]; cancelled: boolean; mode: Mode } | null>(null);
   const [mode, setMode] = useState<Mode>("record");
   const [offsetMs, setOffsetMs] = useState(loadOffset);
@@ -105,7 +123,7 @@ export function TapRecorder({ pattern, tempo, timeSignature, notes, measureTicks
     const fb = resolution === "auto" ? SIXTEENTH : resolution;
     const tick = Math.round((time - offsetMs / 1000) / spt / fb) * fb;
     const dir = action ?? autoDirection(tick, tick % 6 === 0 ? "8beat" : "16beat");
-    player.strumNow(notes, dir === "upstroke" ? "up" : "down");
+    player.strumNow(notesAt ? notesAt(Math.max(0, tick)) : notes, dir === "upstroke" ? "up" : "down");
   };
 
   // 録音中の表示（カウントダウンと進行バー）
@@ -139,8 +157,9 @@ export function TapRecorder({ pattern, tempo, timeSignature, notes, measureTicks
       else if (e.key === "ArrowDown") tap("downstroke");
       else if (e.key === "ArrowUp") tap("upstroke");
       else return;
+      // 同じ window に登録された他の操作（演奏画面のスペース＝再生など）にも渡さない
       e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -161,6 +180,7 @@ export function TapRecorder({ pattern, tempo, timeSignature, notes, measureTicks
     setCountdown(timeSignature.numerator);
     setPhase("countin");
     const { start: t0 } = await player.play(track, {
+      owner: "recording",
       onEnd: () => {
         const s = session.current;
         session.current = null;
@@ -182,7 +202,7 @@ export function TapRecorder({ pattern, tempo, timeSignature, notes, measureTicks
         const corrected = s.taps.map((t) => ({ ...t, time: t.time - offsetMs / 1000 }));
         const r = transcribeTaps(corrected, { secondsPerTick: spt, lengthTicks: recordTicks, gridTicks: resolution });
         setResult(r);
-        setUndo({ events: pattern.events, lengthTicks: pattern.lengthTicks });
+        setUndo({ events: current.events, lengthTicks: current.lengthTicks });
         onApply(
           r.events.map((e) => ({ id: newId(), ...e })),
           recordTicks,
@@ -205,8 +225,10 @@ export function TapRecorder({ pattern, tempo, timeSignature, notes, measureTicks
     <div className="tap-recorder" aria-label="タップで入力">
       <h3 className="block-title">タップで入力（クリックに合わせてタップ）</h3>
       <p className="muted small">
-        「録音」を押すと {timeSignature.numerator}{" "}
-        拍のカウントインのあと、選んだ小節数だけ続けて録音し、パターンをその長さで置き換えます。
+        「録音」を押すと {timeSignature.numerator} 拍のカウントインのあと、
+        {fixedLengthTicks === undefined
+          ? "選んだ小節数だけ続けて録音し、パターンをその長さで置き換えます。"
+          : `選んだ ${fixedLengthTicks / measureTicks} 小節を続けて録音し、その小節のリズムを置き換えます（タップの音は曲のコードで鳴ります）。`}
         パッドをタップ（またはスペースキー）すると、表拍は ↓・裏拍は ↑ として採譜します。
         細かさが「自動」なら、叩いたリズムに合わせて8分か16分かを決めます。向きを指定したいときは ↓／↑
         のパッド（または矢印キー）を使います。
@@ -222,16 +244,18 @@ export function TapRecorder({ pattern, tempo, timeSignature, notes, measureTicks
             ))}
           </select>
         </label>
-        <label className="field inline-field" style={{ margin: 0 }}>
-          <span>録音する長さ</span>
-          <select value={bars} onChange={(e) => setBars(Number(e.target.value))} disabled={busy}>
-            {BAR_CHOICES.map((n) => (
-              <option key={n} value={n}>
-                {n}小節
-              </option>
-            ))}
-          </select>
-        </label>
+        {fixedLengthTicks === undefined && (
+          <label className="field inline-field" style={{ margin: 0 }}>
+            <span>録音する長さ</span>
+            <select value={bars} onChange={(e) => setBars(Number(e.target.value))} disabled={busy}>
+              {BAR_CHOICES.map((n) => (
+                <option key={n} value={n}>
+                  {n}小節
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="field inline-field" style={{ margin: 0 }}>
           <span>細かさ</span>
           <select
@@ -259,7 +283,8 @@ export function TapRecorder({ pattern, tempo, timeSignature, notes, measureTicks
             type="button"
             className="small-btn"
             onClick={() => {
-              onApply(undo.events, undo.lengthTicks);
+              if (onUndo) onUndo();
+              else onApply(undo.events, undo.lengthTicks);
               setUndo(null);
               setResult(null);
             }}

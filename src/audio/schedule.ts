@@ -1,5 +1,5 @@
 // 再生スケジュール（純粋関数）。曲データから「何秒後に何を鳴らすか」を作る。
-// 表示と同じ時間軸（layoutSong・tilePattern）を使うので、画面の音符と音は必ず一致する。
+// 画面と同じ小節データ（sectionMeasureRows）から作るので、画面の音符と音は必ず一致する。
 //
 // 音の対応:
 //   音符＋ダウン   … 低音弦→高音弦の順に全弦をかき鳴らす
@@ -9,17 +9,11 @@
 //   音符＋弾かない … 何もしない（前の音を伸ばす）
 //   休符           … 鳴っている弦を止める
 // リズムパターン未設定のコードは、コードの頭で1回ダウンストロークする（音が途切れないように）。
+import { sectionMeasureRows } from "../music/arrangement";
 import { soundingNotes, type SoundingNote } from "../music/chord";
-import {
-  layoutSong,
-  resolveRhythmPattern,
-  tilePattern,
-  TICKS_PER_QUARTER,
-  ticksPerBeat,
-  ticksPerMeasure,
-} from "../music/timeline";
+import { layoutSong, tilePattern, TICKS_PER_QUARTER, ticksPerBeat, ticksPerMeasure } from "../music/timeline";
 import { resolveForm } from "../model/songOps";
-import type { RhythmPattern, Song } from "../model/types";
+import type { ChordEvent, RhythmPattern, Song } from "../model/types";
 
 export type AudioEvent =
   | { kind: "strum"; time: number; direction: "down" | "up"; notes: SoundingNote[] }
@@ -85,30 +79,55 @@ function clicks(fromTick: number, toTick: number, song: Song, toTime: (tick: num
   return out;
 }
 
-/** 曲の startIndex 番目（通し番号）のコードから最後までのスケジュール */
+/**
+ * 曲の startIndex 番目（通し番号）のコードから最後までのスケジュール。
+ * 画面と同じ小節データ（sectionMeasureRows）から作るので、表示と音は必ず一致する。
+ */
 export function buildSongSchedule(song: Song, startIndex: number, opts: { metronome?: boolean } = {}): Schedule {
-  const placed = layoutSong(song).slice(Math.max(0, startIndex));
-  if (placed.length === 0) return { events: [], chordStarts: [], duration: 0 };
+  const placed = layoutSong(song);
+  const first = placed[Math.max(0, startIndex)];
+  if (!first) return { events: [], chordStarts: [], duration: 0 };
+  return buildRangeSchedule(song, first.absStart, Infinity, opts);
+}
+
+/** 曲の [fromTick, toTick) の範囲のスケジュール（小節の試聴などに使う） */
+export function buildRangeSchedule(
+  song: Song,
+  fromTick: number,
+  toTick: number,
+  opts: { metronome?: boolean } = {},
+): Schedule {
   const spt = secondsPerTick(song.tempo);
-  const origin = placed[0].absStart;
-  const toTime = (absTick: number) => (absTick - origin) * spt;
+  const toTime = (absTick: number) => (absTick - fromTick) * spt;
   const events: AudioEvent[] = [];
   const chordStarts: Schedule["chordStarts"] = [];
-  let endTick = origin;
-  for (const p of placed) {
-    const form = resolveForm(song, p.chord).form;
-    const notes = form ? soundingNotes(form.positions) : [];
-    const pattern = resolveRhythmPattern(song, p.section, p.chord);
-    const abs = (rel: number) => toTime(p.absStart + rel);
-    chordStarts.push({ time: toTime(p.absStart), chordId: p.chord.id });
-    if (pattern) {
-      events.push(...eventsForRhythm(tilePattern(pattern, p.sectionStart, p.chord.durationTicks), notes, abs));
-    } else if (notes.length) {
-      events.push({ kind: "strum", time: abs(0), direction: "down", notes });
+  const notesCache = new Map<string, SoundingNote[]>();
+  const notesOf = (song: Song, chord: ChordEvent) => {
+    if (!notesCache.has(chord.id)) {
+      const form = resolveForm(song, chord).form;
+      notesCache.set(chord.id, form ? soundingNotes(form.positions) : []);
     }
-    endTick = p.absStart + p.chord.durationTicks;
+    return notesCache.get(chord.id)!;
+  };
+  let endTick = fromTick;
+  for (const section of song.sections) {
+    for (const row of sectionMeasureRows(song, section)) {
+      for (const slot of row.slots) {
+        const slotStart = row.absStart + slot.start;
+        if (slotStart < fromTick || slotStart >= toTick) continue;
+        const notes = notesOf(song, slot.chord);
+        const at = (measureTick: number) => toTime(row.absStart + measureTick);
+        if (!slot.continued) chordStarts.push({ time: at(slot.start), chordId: slot.chord.id });
+        if (slot.pattern) {
+          events.push(...eventsForRhythm(slot.rhythm, notes, at));
+        } else if (!slot.continued && notes.length) {
+          events.push({ kind: "strum", time: at(slot.start), direction: "down", notes });
+        }
+        endTick = Math.max(endTick, slotStart + slot.length);
+      }
+    }
   }
-  if (opts.metronome) events.push(...clicks(origin, endTick, song, toTime));
+  if (opts.metronome) events.push(...clicks(fromTick, endTick, song, toTime));
   events.push({ kind: "damp", time: toTime(endTick) });
   events.sort((a, b) => a.time - b.time);
   return { events, chordStarts, duration: toTime(endTick) };

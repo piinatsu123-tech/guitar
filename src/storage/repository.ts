@@ -3,7 +3,7 @@
 // 将来のクラウド同期でも同じ形式（normalizeSong を通したもの）を使う。
 import { newId } from "../model/factory";
 import { DEFAULT_SETTINGS, type DisplaySettings, type Song } from "../model/types";
-import { isValidTimeSignature } from "../music/timeline";
+import { isValidTimeSignature, ticksPerMeasure } from "../music/timeline";
 import type { StringNumber } from "../music/pitch";
 
 export const SCHEMA_VERSION = 1;
@@ -76,6 +76,29 @@ export function normalizeSettings(v: unknown): DisplaySettings {
   };
 }
 
+function normalizeEvents(v: unknown, lengthTicks: number) {
+  return arr(v)
+    .filter(isObj)
+    .map((e) => ({
+      id: str(e.id, newId()),
+      startTick: int(e.startTick, 0, 0, lengthTicks - 1),
+      durationTicks: int(e.durationTicks, 12, 1, lengthTicks),
+      kind: e.kind === "rest" ? ("rest" as const) : ("note" as const),
+      guitarAction: ACTIONS.includes(e.guitarAction as (typeof ACTIONS)[number])
+        ? (e.guitarAction as (typeof ACTIONS)[number])
+        : ("none" as const),
+    }));
+}
+
+function normalizeMeasureRhythms(v: unknown, measureTicks: number) {
+  const seen = new Set<number>();
+  const list = arr(v)
+    .filter(isObj)
+    .map((r) => ({ measure: int(r.measure, -1, -1), events: normalizeEvents(r.events, measureTicks) }))
+    .filter((r) => r.measure >= 0 && !seen.has(r.measure) && seen.add(r.measure));
+  return list.length ? list : undefined;
+}
+
 export function normalizeSong(v: unknown): Song {
   if (!isObj(v)) throw new Error("曲データの形式が正しくありません");
   const now = new Date().toISOString();
@@ -122,12 +145,14 @@ export function normalizeSong(v: unknown): Song {
     });
   const formIds = new Set(forms.map((f) => f.id));
 
+  const measureTicks = ticksPerMeasure(timeSignature);
   const sections = arr(v.sections)
     .filter(isObj)
     .map((s) => ({
       id: str(s.id, newId()),
       name: str(s.name, "セクション"),
       rhythmPatternId: patternRef(s.rhythmPatternId),
+      measureRhythms: normalizeMeasureRhythms(s.measureRhythms, measureTicks),
       chords: arr(s.chords)
         .filter(isObj)
         .map((c) => {

@@ -35,7 +35,7 @@ async function check(name, fn) {
     await fn();
     results.push(["✓", name]);
   } catch (e) {
-    results.push(["✗", name, e.message.split("\n")[0]]);
+    results.push(["✗", name, e.message.split("\n").filter(Boolean).slice(0, 30).join(" ")]);
   }
 }
 
@@ -375,7 +375,11 @@ async function tapAlong(offsetsSec, keys, waitText = "録音中") {
         const status = document.querySelector(".tap-status");
         const go = () => {
           offsetsSec.forEach((t, i) =>
-            setTimeout(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: keys?.[i] ?? " " })), t * 1000),
+            setTimeout(
+              // 実際のキー入力と同じく、ページ（body）から window へ伝わるイベントにする
+              () => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: keys?.[i] ?? " ", bubbles: true })),
+              t * 1000,
+            ),
           );
           setTimeout(resolve, offsetsSec[offsetsSec.length - 1] * 1000 + 50);
         };
@@ -494,6 +498,15 @@ await check("タップ入力: 16分グリッドでも 8分を叩けば ↓↑（
 });
 
 await check("タップ入力: 音が 200ms 遅れる環境でも「補正を測る」で 8分の ↓↑ が正しく入る", async () => {
+  try {
+    await calibrationScenario();
+  } finally {
+    // 失敗しても補正を残さない（後のテストに影響させない）
+    await page.evaluate(() => localStorage.removeItem("guitar-player/tap-offset-ms"));
+  }
+});
+
+async function calibrationScenario() {
   await page.getByRole("radio", { name: "8分" }).click();
   const e = 60 / 96 / 2;
   const LAT = 0.2;
@@ -517,11 +530,12 @@ await check("タップ入力: 音が 200ms 遅れる環境でも「補正を測�
   await page.getByRole("button", { name: "● 録音" }).click();
   await tapAlong(eighths);
   await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 6000 });
-  assert.deepEqual(await stepCells(8), EIGHTHS_UPDOWN);
+  const status = await page.locator(".tap-status").textContent();
+  assert.deepEqual(await stepCells(8), EIGHTHS_UPDOWN, `補正 ${ms}ms / ${status}`);
   await page.getByRole("button", { name: "0に戻す" }).click();
   await page.getByRole("button", { name: "破棄" }).click();
   await page.getByRole("button", { name: "‹ 演奏画面" }).click();
-});
+}
 
 await check("タップ入力: 細かさ「自動」で16分を叩くと16分で採譜し、マス目も16分になる", async () => {
   await page.getByRole("button", { name: "編集", exact: true }).click();
@@ -540,6 +554,90 @@ await check("タップ入力: 細かさ「自動」で16分を叩くと16分で�
   assert.match(await page.locator(".tap-status").textContent(), /16個の音符を16分の細かさで入力/);
   await page.getByRole("button", { name: "破棄" }).click();
   await page.getByRole("button", { name: "‹ 演奏画面" }).click();
+});
+
+const bar = (n) => page.locator(".score .tl-measure").nth(n - 1);
+const selectBar = (n) => page.getByRole("button", { name: `${n}小節目を選択`, exact: true }).click();
+const notesIn = (n) => bar(n).locator(".tl-note").count();
+
+await check("譜面でリズム編集: 1小節をマス目で編集すると、その小節だけ「個別」になる", async () => {
+  await page.setViewportSize({ width: 1024, height: 1366 });
+  await page.reload();
+  if ((await page.locator(".score").count()) === 0) {
+    await page.getByRole("radiogroup", { name: "表示形式" }).getByRole("radio", { name: "譜面" }).click();
+  }
+  await page.getByRole("button", { name: "リズム編集" }).click();
+  const before2 = await notesIn(2);
+  const before3 = await notesIn(3);
+  await selectBar(2);
+  await selectBar(3);
+  await page.getByRole("tab", { name: "マス目で編集" }).click();
+  // 2小節目の 1&（2マス目）を ↑ の音符にする
+  await page.locator(".measure-panel .step").nth(1).click();
+  await page.locator(".measure-panel").getByRole("button", { name: "♪ 音符" }).click();
+  await page
+    .locator(".measure-panel")
+    .getByRole("button", { name: /アップストローク/ })
+    .click();
+  assert.equal(await bar(2).locator(".tl-custom").count(), 1);
+  assert.equal(await notesIn(2), before2 + 1, "1& に音符が1つ増える");
+  assert.equal(await bar(3).locator(".tl-custom").count(), 0, "変えていない小節はパターンのまま");
+  assert.equal(await notesIn(3), before3);
+});
+
+await check("譜面でリズム編集: 2小節をまとめてタップ録音（曲のコードで鳴らしながら）", async () => {
+  const before1 = await notesIn(1);
+  await page.getByRole("tab", { name: "タップで録音" }).click();
+  await page.getByRole("button", { name: "● 録音" }).click();
+  const e = 60 / 96 / 2;
+  // 2小節目：8分 ×8、3小節目：4分 ×4
+  await tapAlong([...Array.from({ length: 8 }, (_, i) => i * e), ...[8, 10, 12, 14].map((i) => i * e)]);
+  await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 9000 });
+  assert.equal(await notesIn(2), 8);
+  assert.equal(await notesIn(3), 4);
+  assert.equal(await bar(3).locator(".tl-custom").count(), 1);
+  assert.equal(await notesIn(1), before1, "選んでいない小節は変わらない");
+});
+
+await check("譜面でリズム編集: コピー＆貼り付け、パターンに戻す、元に戻す", async () => {
+  await page.getByRole("button", { name: "選択を解除" }).click();
+  await selectBar(2);
+  await page.getByRole("tab", { name: "パターン・コピー" }).click();
+  await page.getByRole("button", { name: /この1小節をコピー/ }).click();
+  await page.getByRole("button", { name: "選択を解除" }).click();
+  const before5 = await notesIn(5);
+  await selectBar(5);
+  await page.getByRole("tab", { name: "パターン・コピー" }).click();
+  await page.getByRole("button", { name: /^貼り付け/ }).click();
+  assert.equal(await notesIn(5), 8);
+  assert.equal(await notesIn(2), 8, "コピー元はそのまま");
+  await page.getByRole("button", { name: "直接入力をやめてパターンに戻す" }).click();
+  assert.equal(await notesIn(5), before5);
+  assert.equal(await bar(5).locator(".tl-custom").count(), 0);
+  await page.getByRole("button", { name: "↶ 元に戻す" }).click();
+  assert.equal(await notesIn(5), 8);
+});
+
+await check("譜面でリズム編集: 選んだ小節だけを聴ける（▶ 聴く／■ 停止）", async () => {
+  await page.locator(".measure-panel").getByRole("button", { name: "▶ 聴く" }).click();
+  await page.locator(".measure-panel").getByRole("button", { name: "■ 停止" }).waitFor();
+  await page.locator(".measure-panel").getByRole("button", { name: "■ 停止" }).click();
+  await page.locator(".measure-panel").getByRole("button", { name: "▶ 聴く" }).waitFor();
+});
+
+await check("譜面でリズム編集: パターンとして保存できる", async () => {
+  await page.evaluate(() => {
+    window.prompt = () => "サビの刻み";
+  });
+  await page.getByRole("button", { name: "パターンとして保存" }).click();
+  assert.ok((await page.getByLabel("当てはめるパターン").locator("option").allTextContents()).includes("サビの刻み"));
+});
+
+await check("譜面でリズム編集: 再読み込み後も残る", async () => {
+  await page.reload();
+  assert.equal(await notesIn(2), 8);
+  assert.equal(await notesIn(5), 8);
+  assert.equal(await bar(5).locator(".tl-custom").count(), 1);
 });
 
 await check("ページエラーなし", async () => {

@@ -5,7 +5,7 @@ import { generateForms } from "../music/formGenerator";
 import { clampLyrics } from "../music/lyrics";
 import { SIXTEENTH } from "../music/timeline";
 import { newId } from "./factory";
-import type { ChordEvent, Section, Song } from "./types";
+import type { ChordEvent, RhythmEvent, Section, Song } from "./types";
 
 const autoFormCache = new Map<string, ChordForm | null>();
 
@@ -145,4 +145,22 @@ export function findChord(song: Song, chordId: string | undefined): { chord: Cho
     if (chord) return { chord, section };
   }
   return null;
+}
+
+/**
+ * 小節のリズムを直接設定する（events = null で解除し、パターンに従うように戻す）。
+ * measure はセクション内の小節番号。
+ */
+export function setMeasureRhythm(
+  song: Song,
+  sectionId: string,
+  measure: number,
+  events: Omit<RhythmEvent, "id">[] | null,
+): Song {
+  return updateSection(song, sectionId, (s) => {
+    const rest = (s.measureRhythms ?? []).filter((r) => r.measure !== measure);
+    const next = events ? [...rest, { measure, events: events.map((e) => ({ ...e, id: newId() })) }] : rest;
+    next.sort((a, b) => a.measure - b.measure);
+    return { ...s, measureRhythms: next.length ? next : undefined };
+  });
 }

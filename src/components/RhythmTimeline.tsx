@@ -59,6 +59,8 @@ type Props = {
   /** 小節番号の表示に使う（通し番号の開始値） */
   measureNumberOffset?: number;
   className?: string;
+  /** 小節を選ぶモード（リズム編集）。指定するとコードではなく小節をタップで選ぶ */
+  measureSelection?: { isSelected: (row: MeasureRow) => boolean; onClick: (row: MeasureRow) => void };
 };
 
 const pct = (tick: number, len: number) => `${(tick / len) * 100}%`;
@@ -78,6 +80,7 @@ export function RhythmTimeline({
   onToggleAccent,
   measureNumberOffset = 0,
   className = "",
+  measureSelection,
 }: Props) {
   return (
     <div className={`timeline tl-${display.variant} ${className}`}>
@@ -92,6 +95,7 @@ export function RhythmTimeline({
           onSelectChord={onSelectChord}
           onToggleAccent={onToggleAccent}
           number={row.measureIndex + 1 + measureNumberOffset}
+          measureSelection={measureSelection}
         />
       ))}
     </div>
@@ -107,7 +111,9 @@ function MeasureView({
   onSelectChord,
   onToggleAccent,
   number,
+  measureSelection,
 }: {
+  measureSelection?: Props["measureSelection"];
   row: MeasureRow;
   ts: TimeSignature;
   display: TimelineDisplay;
@@ -283,10 +289,19 @@ function MeasureView({
       : [chordNames, d.showRhythm && notes, d.showStrokes && strokes, ruler, d.showLyrics && lyrics];
 
   return (
-    <div className="tl-measure" role="group" aria-label={`${number}小節目`}>
+    <div
+      className={`tl-measure${row.custom ? " custom" : ""}${measureSelection?.isSelected(row) ? " measure-selected" : ""}`}
+      role="group"
+      aria-label={`${number}小節目`}
+    >
       <span className="tl-measure-num" aria-hidden>
         {number}
       </span>
+      {row.custom && (
+        <span className="tl-custom" title="この小節はリズムを直接入力しています">
+          個別
+        </span>
+      )}
       {/* 拍・細分化のグリッド線 */}
       <div className="tl-grid" aria-hidden>
         {gridTicks.map((t) => (
@@ -297,19 +312,30 @@ function MeasureView({
           />
         ))}
       </div>
-      {/* コードの範囲（タップで選択） */}
-      {row.slots.map((slot) => (
+      {/* リズム編集中は小節全体をタップで選ぶ */}
+      {measureSelection && (
         <button
-          key={`hl-${slotKey(slot)}`}
           type="button"
-          className={`tl-slot${selected(slot) ? " selected" : ""}`}
-          style={{ left: pct(slot.start, len), width: pct(slot.length, len) }}
-          onClick={() => onSelectChord?.(slot.chord.id)}
-          aria-label={`${slot.chord.chordName} を選択`}
-          aria-pressed={selected(slot)}
-          tabIndex={onSelectChord ? 0 : -1}
+          className="tl-measure-select"
+          onClick={() => measureSelection.onClick(row)}
+          aria-pressed={measureSelection.isSelected(row)}
+          aria-label={`${number}小節目を選択`}
         />
-      ))}
+      )}
+      {/* コードの範囲（タップで選択） */}
+      {!measureSelection &&
+        row.slots.map((slot) => (
+          <button
+            key={`hl-${slotKey(slot)}`}
+            type="button"
+            className={`tl-slot${selected(slot) ? " selected" : ""}`}
+            style={{ left: pct(slot.start, len), width: pct(slot.length, len) }}
+            onClick={() => onSelectChord?.(slot.chord.id)}
+            aria-label={`${slot.chord.chordName} を選択`}
+            aria-pressed={selected(slot)}
+            tabIndex={onSelectChord ? 0 : -1}
+          />
+        ))}
       {order}
     </div>
   );

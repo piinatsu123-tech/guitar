@@ -1,30 +1,18 @@
 import { useEffect, useState } from "react";
 import { player } from "../../audio/player";
 import { buildPatternSchedule } from "../../audio/schedule";
+import { StepEditor } from "../../components/StepEditor";
 import { TapRecorder } from "./TapRecorder";
 import { soundingNotes } from "../../music/chord";
 import { autoForm, chordNamesInSong, resolveForm } from "../../model/songOps";
-import { ACTION_LABEL, ACTION_SYMBOL, RhythmTimeline } from "../../components/RhythmTimeline";
+import { RhythmTimeline } from "../../components/RhythmTimeline";
 import { makeChord, makePattern, newId } from "../../model/factory";
 import { deletePattern } from "../../model/songOps";
-import type { GuitarAction, RhythmPattern, Song } from "../../model/types";
+import type { RhythmPattern, Song } from "../../model/types";
 import type { MeasureRow } from "../../music/arrangement";
-import {
-  EIGHTH,
-  eventsToSteps,
-  SIXTEENTH,
-  stepsToEvents,
-  subdivisionLabel,
-  tilePattern,
-  ticksPerBeat,
-  ticksPerMeasure,
-  validatePattern,
-  type Step,
-} from "../../music/timeline";
+import { EIGHTH, SIXTEENTH, tilePattern, ticksPerBeat, ticksPerMeasure, validatePattern } from "../../music/timeline";
 
 type Props = { song: Song; onChange: (s: Song) => void };
-
-const ACTIONS: GuitarAction[] = ["downstroke", "upstroke", "pluck", "mute", "none"];
 
 export function RhythmTab({ song, onChange }: Props) {
   const [selectedId, setSelectedId] = useState<string | undefined>(song.rhythmPatterns[0]?.id);
@@ -185,21 +173,9 @@ function PatternEditor({
   };
 
   const m = ticksPerMeasure(ts);
-  const aligned16 = pattern.events.every((e) => e.startTick % SIXTEENTH === 0 && e.durationTicks % SIXTEENTH === 0);
   const aligned8 = pattern.events.every((e) => e.startTick % EIGHTH === 0 && e.durationTicks % EIGHTH === 0);
   const [stepTicks, setStepTicks] = useState(aligned8 ? EIGHTH : SIXTEENTH);
-  const [cursor, setCursor] = useState(0);
-  const steps = eventsToSteps(pattern.events, pattern.lengthTicks, stepTicks);
   const errors = validatePattern(pattern);
-
-  const setSteps = (next: Step[]) =>
-    onChange({ ...pattern, events: stepsToEvents(next, stepTicks, newId, pattern.events) });
-  const setStep = (i: number, patch: Partial<Step>) => {
-    const next = steps.map((s, j) => (j === i ? { ...s, ...patch } : s));
-    if (next[i].state !== "note") next[i].action = "none";
-    else if (patch.state === "note" && steps[i].state !== "note") next[i].action = "downstroke";
-    setSteps(next);
-  };
 
   const setLength = (ticks: number) => {
     if (ticks <= 0) return;
@@ -223,6 +199,7 @@ function PatternEditor({
       measureIndex: start / m,
       absStart: start,
       length: m,
+      custom: false,
       slots: [
         {
           chord: { ...preview, chordName: pattern.name },
@@ -230,6 +207,7 @@ function PatternEditor({
           length: len,
           continued: start > 0,
           pattern,
+          custom: false,
           rhythm: tilePattern(pattern, start, len),
           lyrics: [],
         },
@@ -237,7 +215,6 @@ function PatternEditor({
     });
   }
 
-  const cur = steps[Math.min(cursor, steps.length - 1)];
   const lengthOptions = [beat * 2, m / 2, m, m * 2, m * 4, m * 8].filter(
     (t, i, a) => Number.isInteger(t) && t > 0 && a.indexOf(t) === i,
   );
@@ -262,133 +239,21 @@ function PatternEditor({
             ))}
           </select>
         </label>
-        <div className="field">
-          <span>グリッド</span>
-          <div className="segmented" role="radiogroup" aria-label="グリッド">
-            <button
-              type="button"
-              role="radio"
-              aria-checked={stepTicks === EIGHTH}
-              className={stepTicks === EIGHTH ? "on" : ""}
-              disabled={!aligned8}
-              onClick={() => setStepTicks(EIGHTH)}
-              title={aligned8 ? "" : "16分音符の位置にイベントがあるため選べません"}
-            >
-              8分
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={stepTicks === SIXTEENTH}
-              className={stepTicks === SIXTEENTH ? "on" : ""}
-              disabled={!aligned16}
-              onClick={() => setStepTicks(SIXTEENTH)}
-            >
-              16分
-            </button>
-          </div>
-        </div>
       </div>
 
-      <p className="muted small">
-        マスを選んでから下のボタンで「音符・休符・伸ばす」と「弾き方」を設定します。「伸ばす」は直前の音符・休符を長くします。音符でも「弾かない（—）」にすると、新しく弾かずに音を伸ばす（タイ）扱いになります。
-      </p>
-
-      <div
-        className="step-grid"
-        role="grid"
-        aria-label="リズムのステップ"
-        // 1小節ごとに折り返す
-        style={{ gridTemplateColumns: `repeat(${Math.min(steps.length, m / stepTicks)}, minmax(26px, 1fr))` }}
-      >
-        {steps.map((s, i) => {
-          const tick = (i * stepTicks) % m;
-          const label = subdivisionLabel(tick, ts);
-          return (
-            <button
-              key={i}
-              type="button"
-              role="gridcell"
-              className={`step ${s.state}${i === cursor ? " cursor" : ""}${tick % beat === 0 ? " beat" : ""}${tick === 0 ? " bar" : ""}`}
-              onClick={() => setCursor(i)}
-              aria-selected={i === cursor}
-              aria-label={`${label || "·"} ${s.state === "note" ? "音符" : s.state === "rest" ? "休符" : "伸ばす"} ${s.state === "note" ? ACTION_LABEL[s.action] : ""}`}
-            >
-              {tick === 0 && pattern.lengthTicks > m && (
-                <span className="step-bar" aria-hidden>
-                  {(i * stepTicks) / m + 1}
-                </span>
-              )}
-              <span className="step-state">{s.state === "note" ? "♪" : s.state === "rest" ? "休" : "～"}</span>
-              <span className="step-action">{s.state === "note" ? ACTION_SYMBOL[s.action] : ""}</span>
-              <span className="step-label">{label || "·"}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {cur && (
-        <div className="step-tools">
-          <div className="btn-row">
-            <span className="small">種類:</span>
-            <button
-              type="button"
-              className={`chip${cur.state === "note" ? " on" : ""}`}
-              onClick={() => setStep(cursor, { state: "note" })}
-            >
-              ♪ 音符
-            </button>
-            <button
-              type="button"
-              className={`chip${cur.state === "rest" ? " on" : ""}`}
-              onClick={() => setStep(cursor, { state: "rest" })}
-            >
-              休符
-            </button>
-            <button
-              type="button"
-              className={`chip${cur.state === "hold" ? " on" : ""}`}
-              onClick={() => setStep(cursor, { state: "hold" })}
-              disabled={cursor === 0}
-              title={cursor === 0 ? "先頭は伸ばせません（音符＋「弾かない」でタイを表せます）" : ""}
-            >
-              ～ 伸ばす
-            </button>
-          </div>
-          <div className="btn-row">
-            <span className="small">弾き方:</span>
-            {ACTIONS.map((a) => (
-              <button
-                key={a}
-                type="button"
-                className={`chip${cur.state === "note" && cur.action === a ? " on" : ""}`}
-                disabled={cur.state !== "note"}
-                onClick={() => setStep(cursor, { action: a })}
-                title={ACTION_LABEL[a]}
-              >
-                {ACTION_SYMBOL[a]} {ACTION_LABEL[a].replace(/（.*）/, "")}
-              </button>
-            ))}
-          </div>
-          <div className="btn-row">
-            <button type="button" className="small-btn" onClick={() => setCursor((c) => Math.max(0, c - 1))}>
-              ◀ 前のマス
-            </button>
-            <button
-              type="button"
-              className="small-btn"
-              onClick={() => setCursor((c) => Math.min(steps.length - 1, c + 1))}
-            >
-              次のマス ▶
-            </button>
-          </div>
-        </div>
-      )}
+      <StepEditor
+        events={pattern.events}
+        lengthTicks={pattern.lengthTicks}
+        timeSignature={ts}
+        stepTicks={stepTicks}
+        onStepTicksChange={setStepTicks}
+        onChange={(events) => onChange({ ...pattern, events })}
+      />
 
       {errors.length > 0 && <p className="warn small">⚠ {errors.join(" / ")}</p>}
 
       <TapRecorder
-        pattern={pattern}
+        current={pattern}
         tempo={song.tempo}
         timeSignature={ts}
         notes={previewNotes()}

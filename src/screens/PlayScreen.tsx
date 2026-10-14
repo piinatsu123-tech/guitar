@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { player } from "../audio/player";
 import { buildSongSchedule } from "../audio/schedule";
 import { FormAnalysisView } from "../components/FormAnalysisView";
+import { MeasureRhythmPanel, type RhythmClip } from "../components/MeasureRhythmPanel";
 import { PianoView } from "../components/PianoView";
 import { ProgressionView } from "../components/ProgressionView";
 import { RhythmTimeline } from "../components/RhythmTimeline";
@@ -43,6 +44,21 @@ export function PlayScreen({
   const [showSettings, setShowSettings] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [metronome, setMetronome] = useState(false);
+  // 譜面でのリズム編集：選んだ小節の範囲（曲全体の通し番号）
+  const [rhythmEdit, setRhythmEdit] = useState(false);
+  const [measureSel, setMeasureSel] = useState<{ anchor: number; end: number } | null>(null);
+  const [clip, setClip] = useState<RhythmClip | null>(null);
+  const onMeasureClick = (g: number) => {
+    setMeasureSel((sel) => {
+      if (!sel) return { anchor: g, end: g };
+      if (sel.anchor === sel.end && sel.anchor === g) return null; // 同じ小節をもう一度：解除
+      if (sel.anchor === sel.end) return { anchor: sel.anchor, end: g }; // 2つ目：範囲
+      return { anchor: g, end: g }; // 範囲を選んだあと：選び直し
+    });
+  };
+  const selRange = measureSel
+    ? { from: Math.min(measureSel.anchor, measureSel.end), to: Math.max(measureSel.anchor, measureSel.end) }
+    : null;
 
   // 画面を離れたら再生を止める
   useEffect(() => () => player.stop(), []);
@@ -56,6 +72,7 @@ export function PlayScreen({
     if (!current) return;
     setPlaying(true);
     await player.play(buildSongSchedule(song, current.globalIndex, { metronome }), {
+      owner: "song",
       onChord: onSelectChord,
       onEnd: () => setPlaying(false),
     });
@@ -75,6 +92,8 @@ export function PlayScreen({
   // PC ではキーボードの ← → でコード移動
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return; // タップ録音などが使ったキー
+      if (player.owner === "recording") return; // タップ録音中は再生・移動を受け付けない
       const t = e.target as HTMLElement | null;
       if (t && ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
       if (e.key === " " && !(t && t.tagName === "BUTTON")) {
@@ -152,6 +171,19 @@ export function PlayScreen({
               </button>
             ))}
           </div>
+          {settings.playView === "score" && (
+            <button
+              type="button"
+              className={`ghost${rhythmEdit ? " active" : ""}`}
+              aria-pressed={rhythmEdit}
+              onClick={() => {
+                setRhythmEdit((v) => !v);
+                setMeasureSel(null);
+              }}
+            >
+              {rhythmEdit ? "✓ リズム編集中" : "リズム編集"}
+            </button>
+          )}
           <button
             type="button"
             className={`ghost${showSettings ? " active" : ""}`}
@@ -176,6 +208,8 @@ export function PlayScreen({
           selectedChordId={current?.chord.id}
           onSelectChord={onSelectChord}
           onToggleAccent={toggleLyricAccent}
+          rhythmEdit={selRange}
+          onMeasureClick={rhythmEdit ? onMeasureClick : undefined}
         />
       ) : (
         <div className="play-layout">
@@ -310,6 +344,23 @@ export function PlayScreen({
             )}
           </div>
         </div>
+      )}
+
+      {rhythmEdit && settings.playView === "score" && !selRange && (
+        <div className="measure-panel hint" role="status">
+          リズムを入れたい小節をタップしてください。続けて別の小節をタップすると、その間をまとめて選べます。
+        </div>
+      )}
+      {rhythmEdit && settings.playView === "score" && selRange && (
+        <MeasureRhythmPanel
+          song={song}
+          from={selRange.from}
+          to={selRange.to}
+          onSongChange={onSongChange}
+          clip={clip}
+          onCopy={setClip}
+          onClose={() => setMeasureSel(null)}
+        />
       )}
 
       <nav className="chord-nav" aria-label="コード移動">
