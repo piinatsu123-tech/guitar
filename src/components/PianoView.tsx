@@ -36,10 +36,10 @@ export function PianoView({ notes, labelMode, rootPc = null, onKeyClick, range, 
   const byMidi = new Map<number, SoundingNote[]>();
   for (const n of notes) byMidi.set(n.midi, [...(byMidi.get(n.midi) ?? []), n]);
 
-  const whiteW = 20;
-  const whiteH = 86;
-  const blackW = 12;
-  const blackH = 54;
+  const whiteW = 24;
+  const whiteH = 104;
+  const blackW = 15;
+  const blackH = 64;
   const keys: { midi: number; x: number; black: boolean }[] = [];
   let wx = 0;
   for (let m = low; m <= high; m++) {
@@ -50,7 +50,7 @@ export function PianoView({ notes, labelMode, rootPc = null, onKeyClick, range, 
     }
   }
   const width = wx;
-  const height = whiteH + 34;
+  const height = whiteH + 38;
   const whites = keys.filter((k) => !k.black);
   const blacks = keys.filter((k) => k.black);
 
@@ -70,22 +70,22 @@ export function PianoView({ notes, labelMode, rootPc = null, onKeyClick, range, 
     if (!sounding) return null;
     const w = k.black ? blackW : whiteW;
     const cx = k.x + w / 2;
-    const cy = k.black ? blackH - 10 : whiteH - 12;
+    const cy = k.black ? blackH - 10 : whiteH - 13;
     const root = rootPc !== null && pitchClass(k.midi) === rootPc;
     return (
       <g key={`m${k.midi}`} pointerEvents="none">
-        <circle cx={cx} cy={cy} r={k.black ? 5 : 6.5} className={`key-marker${root ? " root" : ""}`} />
+        <circle cx={cx} cy={cy} r={k.black ? 5.5 : 7.5} className={`key-marker${root ? " root" : ""}`} />
         {labelMode !== "hidden" && (
           <text
             x={cx}
-            y={k.black ? blackH - 22 : whiteH - 24}
+            y={k.black ? blackH - 22 : whiteH - 27}
             textAnchor="middle"
             className={`key-label${k.black ? " on-black" : ""}`}
           >
             {noteName(k.midi, labelMode)}
           </text>
         )}
-        <text x={cx} y={whiteH + 14} textAnchor="middle" className="key-strings">
+        <text x={cx} y={whiteH + 16} textAnchor="middle" className="key-strings">
           {sounding.map((n) => STRING_GLYPH[n.stringNumber]).join("")}
         </text>
       </g>
@@ -137,7 +137,7 @@ export function PianoView({ notes, labelMode, rootPc = null, onKeyClick, range, 
         whites
           .filter((k) => pitchClass(k.midi) === 0)
           .map((k) => (
-            <text key={`c${k.midi}`} x={k.x + whiteW / 2} y={whiteH + 28} textAnchor="middle" className="octave-label">
+            <text key={`c${k.midi}`} x={k.x + whiteW / 2} y={whiteH + 32} textAnchor="middle" className="octave-label">
               {labelMode === "solfege" ? `ド${octaveOf(k.midi)}` : `C${octaveOf(k.midi)}`}
             </text>
           ))}

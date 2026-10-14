@@ -134,6 +134,15 @@ await check("表示: ピアノをオンにすると、コード図の下に鍵�
   await page.getByRole("button", { name: "表示" }).click();
 });
 
+await check("表示: 開放弦の音名をオフにできる（既定はオン）", async () => {
+  assert.ok((await section("Aメロ").locator(".sheet-diagram .open-name").count()) > 0);
+  await page.getByRole("button", { name: "表示" }).click();
+  await page.getByLabel("開放弦の音名").uncheck();
+  assert.equal(await page.locator(".sheet-diagram .open-name").count(), 0);
+  await page.getByLabel("開放弦の音名").check();
+  await page.getByRole("button", { name: "表示" }).click();
+});
+
 await check("表示: コード図をオフにすると名前だけ。再読み込み後も維持", async () => {
   await page.getByRole("button", { name: "表示" }).click();
   await page.getByLabel("コード図", { exact: true }).uncheck();
@@ -237,17 +246,25 @@ await check(
     assert.equal(await dlg.locator(".chord-dialog-views .tab-view").count(), 1);
     assert.equal(await dlg.locator(".chord-dialog-views .piano-view").count(), 1);
     assert.match(await dlg.locator(".analysis").textContent(), /✓ G/);
-    // ここだけ変える
+    // 開放弦の音名：6本すべてに出る（開放で鳴らす弦は○、ほかは音名だけ）
+    const views = dlg.locator(".chord-dialog-views");
+    assert.ok((await views.locator(".open-name").count()) > 0);
+    assert.equal((await views.locator(".open-dot").count()) + (await views.locator(".open-name").count()), 6);
+    // 候補は「押さえ方を変える」を押したときだけ
+    assert.equal(await dlg.locator(".candidate").count(), 0);
+    await dlg.getByRole("button", { name: "押さえ方を変える" }).click();
+    assert.ok((await dlg.locator(".candidate").count()) > 1);
+    // ここだけ変える（選ぶと拡大表示に戻る）
     await dlg.getByRole("radio", { name: "ここだけ" }).click();
-    const target = dlg.getByRole("button", { name: /^候補3 / });
-    await target.click();
-    assert.equal(await target.getAttribute("aria-pressed"), "true");
+    await dlg.getByRole("button", { name: /^候補3 / }).click();
+    assert.equal(await dlg.locator(".candidate").count(), 0);
     await dlg.getByRole("button", { name: "閉じる" }).click();
     assert.equal(await page.getByRole("dialog").count(), 0);
     assert.notEqual(await gLabel("Aメロ"), before.a);
     assert.equal(await gLabel("サビ"), before.s);
     // すべて変える（Esc で閉じる）
     await section("サビ").getByRole("button", { name: "コード G を拡大" }).first().click();
+    await dlg.getByRole("button", { name: "押さえ方を変える" }).click();
     await dlg.getByRole("button", { name: /^候補1 / }).click();
     await page.keyboard.press("Escape");
     assert.equal(await page.getByRole("dialog").count(), 0);

@@ -14,6 +14,8 @@ type Props = {
   /** 表示開始フレットを固定する（編集時のスクロール用） */
   startFret?: number;
   compact?: boolean;
+  /** 開放弦の音名（E A D G B E）をナットの左に常に出し、開放で鳴らす弦は○で囲む */
+  showOpenStrings?: boolean;
 };
 
 // 弦は上から 1弦 → 6弦（TAB 譜の慣例）
@@ -38,6 +40,7 @@ export function TabView({
   fretCount = 5,
   startFret,
   compact = false,
+  showOpenStrings = false,
 }: Props) {
   const start = startFret ?? displayStartFret(positions, fretCount);
   const frets = fretsFromPositions(positions); // 6弦→1弦
@@ -46,15 +49,17 @@ export function TabView({
   // ---- 寸法（viewBox 単位。実寸は CSS で幅に合わせて拡縮） ----
   const tabW = compact ? 0 : 64; // 左の TAB 譜
   const gap = compact ? 0 : 18;
-  const openW = 34; // 開放・ミュート欄
-  const cellW = 52;
-  const rowH = compact ? 24 : 26;
-  const top = 14;
+  const openW = 40; // 開放・ミュート欄
+  // 小さく並べるとき（compact）は、音名が読めるようにマスに対して丸と文字を大きめにする
+  const cellW = compact ? 44 : 56;
+  const rowH = compact ? 34 : 34;
+  const top = 20;
   const boardX = tabW + gap + openW;
   const width = boardX + cellW * fretCount + 8;
   const height = top + rowH * 5 + 30;
   const y = (s: StringNumber) => top + (s - 1) * rowH;
-  const r = 11;
+  const r = compact ? 16.5 : 14.5;
+  const openNames = showOpenStrings && labelMode !== "hidden";
 
   const label = (s: StringNumber, fret: number) => noteName(midiAt(s, fret)!, labelMode);
   const isRoot = (s: StringNumber, fret: number) => rootPc !== null && pitchClass(midiAt(s, fret)!) === rootPc;
@@ -67,7 +72,7 @@ export function TabView({
 
   return (
     <svg
-      className="tab-view"
+      className={`tab-view${compact ? " compact" : ""}`}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={`TAB譜: ${description}`}
@@ -193,9 +198,30 @@ export function TabView({
         {STRINGS.map((s) => {
           const f = fretOf(s);
           const cx0 = boardX - openW / 2;
+          // 開放弦の音名を常に出す：開放で鳴らす弦は○で囲み、それ以外は薄く（ミュートは×を添える）
+          const openName =
+            openNames && f !== 0 ? (
+              <text
+                x={cx0}
+                y={y(s)}
+                dy="0.36em"
+                textAnchor="middle"
+                className={`open-name${f === null ? " muted" : ""}`}
+                pointerEvents="none"
+              >
+                {label(s, 0)}
+              </text>
+            ) : null;
           if (f === null) {
-            return (
-              <text key={s} x={cx0} y={y(s) + 5} textAnchor="middle" className="mute-mark" pointerEvents="none">
+            return openNames ? (
+              <g key={s} pointerEvents="none">
+                {openName}
+                <text x={cx0 - 15} y={y(s) + 6} textAnchor="middle" className="mute-mark small">
+                  ×
+                </text>
+              </g>
+            ) : (
+              <text key={s} x={cx0} y={y(s) + 6} textAnchor="middle" className="mute-mark" pointerEvents="none">
                 ×
               </text>
             );
@@ -205,7 +231,7 @@ export function TabView({
             return (
               <g key={s} pointerEvents="none">
                 <circle cx={cx0} cy={y(s)} r={r} className={`open-dot${root ? " root" : ""}`} />
-                <text x={cx0} y={y(s) + 4} textAnchor="middle" className="dot-label open">
+                <text x={cx0} y={y(s)} dy="0.36em" textAnchor="middle" className="dot-label open">
                   {label(s, 0)}
                 </text>
               </g>
@@ -213,22 +239,26 @@ export function TabView({
           }
           if (f < start || f >= start + fretCount) {
             return (
-              <text
-                key={s}
-                x={boardX + cellW * fretCount + 4}
-                y={y(s) + 4}
-                className="out-of-view"
-                pointerEvents="none"
-              >
-                {f < start ? `←${f}F` : `${f}F→`}
-              </text>
+              <g key={s}>
+                {openName}
+                <text
+                  key={s}
+                  x={boardX + cellW * fretCount + 4}
+                  y={y(s) + 4}
+                  className="out-of-view"
+                  pointerEvents="none"
+                >
+                  {f < start ? `←${f}F` : `${f}F→`}
+                </text>
+              </g>
             );
           }
           const cx = boardX + (f - start + 0.5) * cellW;
           return (
             <g key={s} pointerEvents="none">
+              {openName}
               <circle cx={cx} cy={y(s)} r={r} className={`fret-dot${root ? " root" : ""}`} />
-              <text x={cx} y={y(s) + 4} textAnchor="middle" className="dot-label">
+              <text x={cx} y={y(s)} dy="0.36em" textAnchor="middle" className="dot-label">
                 {label(s, f)}
               </text>
             </g>

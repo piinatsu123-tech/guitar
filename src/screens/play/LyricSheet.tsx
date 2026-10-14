@@ -120,6 +120,7 @@ export function LyricSheet({
         {settings.showTab && (
           <span className="sheet-diagram">
             <TabView
+              showOpenStrings={settings.showOpenStrings}
               positions={r.form.positions}
               labelMode={settings.tabLabelMode}
               rootPc={rootPc}

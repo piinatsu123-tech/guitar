@@ -24,14 +24,20 @@ type Props = {
 export function ChordDetailDialog({ song, chordId, settings, onSongChange, onEditForms, onClose }: Props) {
   const found = findChord(song, chordId);
   const [applyToAll, setApplyToAll] = useState(true);
+  // 押さえ方の候補は「押さえ方を変える」を押したときだけ出す
+  const [choosing, setChoosing] = useState(false);
   const chordName = found?.chord.chordName ?? "";
   const candidates = useMemo(() => generateForms(chordName, { maxResults: 8 }), [chordName]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (choosing) setChoosing(false);
+      else onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, choosing]);
 
   if (!found) return null;
   const resolved = resolveForm(song, found.chord);
@@ -70,19 +76,48 @@ export function ChordDetailDialog({ song, chordId, settings, onSongChange, onEdi
           </button>
         </div>
         {resolved.analysis && <FormAnalysisView analysis={resolved.analysis} labelMode={settings.tabLabelMode} />}
-        {form ? (
-          <div className="chord-dialog-views">
-            <TabView positions={form.positions} labelMode={settings.tabLabelMode} rootPc={rootPc} />
-            <PianoView notes={soundingNotes(form.positions)} labelMode={settings.pianoLabelMode} rootPc={rootPc} />
-          </div>
+        {!choosing ? (
+          <>
+            {form ? (
+              <div className="chord-dialog-views">
+                <TabView
+                  showOpenStrings={settings.showOpenStrings}
+                  positions={form.positions}
+                  labelMode={settings.tabLabelMode}
+                  rootPc={rootPc}
+                />
+                <PianoView notes={soundingNotes(form.positions)} labelMode={settings.pianoLabelMode} rootPc={rootPc} />
+              </div>
+            ) : (
+              <p className="warn small">このコードのフォームを作れませんでした。</p>
+            )}
+            <div className="btn-row">
+              {candidates.length > 0 && (
+                <button type="button" className="small-btn primary" onClick={() => setChoosing(true)}>
+                  押さえ方を変える
+                </button>
+              )}
+              {resolved.source === "saved" && (
+                <button
+                  type="button"
+                  className="small-btn"
+                  onClick={() => onSongChange(clearForm(song, chordName, chordId, applyToAll))}
+                >
+                  自動で選ぶ形に戻す
+                </button>
+              )}
+              <button type="button" className="small-btn" onClick={onEditForms}>
+                指板・鍵盤で細かく編集
+              </button>
+            </div>
+          </>
         ) : (
-          <p className="warn small">このコードのフォームを作れませんでした。</p>
-        )}
-
-        {candidates.length > 0 && (
           <>
             <div className="btn-row">
-              <strong className="small">ほかの押さえ方</strong>
+              <button type="button" className="small-btn" onClick={() => setChoosing(false)}>
+                ‹ 戻る
+              </button>
+              <strong className="small">押さえ方を選ぶ</strong>
               <div className="segmented small" role="radiogroup" aria-label="変える範囲">
                 <button
                   type="button"
@@ -114,13 +149,22 @@ export function ChordDetailDialog({ song, chordId, settings, onSongChange, onEdi
                     className={`candidate${active ? " on" : ""}`}
                     aria-pressed={active}
                     aria-label={`候補${i + 1} ${formShorthand(g.positions)}`}
-                    onClick={() => choose(g.frets)}
+                    onClick={() => {
+                      choose(g.frets);
+                      setChoosing(false);
+                    }}
                   >
                     <span className="candidate-head">
                       <span className="mono">{formShorthand(g.positions)}</span>
-                      {active && <span>✓</span>}
+                      {active && <span>✓ 今の形</span>}
                     </span>
-                    <TabView positions={g.positions} labelMode={settings.tabLabelMode} rootPc={rootPc} compact />
+                    <TabView
+                      showOpenStrings={settings.showOpenStrings}
+                      positions={g.positions}
+                      labelMode={settings.tabLabelMode}
+                      rootPc={rootPc}
+                      compact
+                    />
                     <span className="muted small">
                       {g.barre ? `セーハ${g.barre}F・` : ""}指{g.fingers}本
                     </span>
@@ -130,20 +174,6 @@ export function ChordDetailDialog({ song, chordId, settings, onSongChange, onEdi
             </div>
           </>
         )}
-        <div className="btn-row end">
-          {resolved.source === "saved" && (
-            <button
-              type="button"
-              className="small-btn"
-              onClick={() => onSongChange(clearForm(song, chordName, chordId, applyToAll))}
-            >
-              自動で選ぶ形に戻す
-            </button>
-          )}
-          <button type="button" className="small-btn" onClick={onEditForms}>
-            指板・鍵盤で細かく編集
-          </button>
-        </div>
       </div>
     </div>
   );

@@ -199,6 +199,14 @@ export function PlayScreen({
             />
             コード図
           </label>
+          <label className="toggle-inline">
+            <input
+              type="checkbox"
+              checked={settings.showOpenStrings}
+              onChange={(e) => onSettingsChange({ ...settings, showOpenStrings: e.target.checked })}
+            />
+            開放弦の音名
+          </label>
           <span className="small">コード図の音名</span>
           <div className="segmented" role="radiogroup" aria-label="コード図の音名">
             {LABEL_MODES.map(([v, label]) => (

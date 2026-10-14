@@ -115,6 +115,8 @@ export type DisplaySettings = {
   showStrokes: boolean;
   tabLabelMode: NoteLabelMode;
   pianoLabelMode: NoteLabelMode;
+  /** コード図の左に開放弦の音名（E A D G B E）を常に出す */
+  showOpenStrings: boolean;
 };
 
 export const DEFAULT_SETTINGS: DisplaySettings = {
@@ -126,4 +128,5 @@ export const DEFAULT_SETTINGS: DisplaySettings = {
   showStrokes: false,
   tabLabelMode: "solfege",
   pianoLabelMode: "abc",
+  showOpenStrings: true,
 };

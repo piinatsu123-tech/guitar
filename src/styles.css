@@ -755,16 +755,29 @@ input.narrow {
 .open-dot {
   fill: var(--surface);
   stroke: var(--dot);
-  stroke-width: 2;
+  stroke-width: 2.5;
 }
 .open-dot.root {
   stroke: var(--root);
   stroke-width: 3.5;
 }
 .dot-label {
-  font-size: 9.5px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   fill: var(--dot-text);
+}
+/* 開放弦の音名（常に表示するとき）。鳴らさない弦は薄く */
+.open-name {
+  font-size: 14px;
+  font-weight: 700;
+  fill: var(--text);
+  opacity: 0.5;
+}
+.open-name.muted {
+  opacity: 0.28;
+}
+.mute-mark.small {
+  font-size: 12px;
 }
 .dot-label.open {
   fill: var(--text);
@@ -840,15 +853,16 @@ input.narrow {
   stroke-width: 2;
 }
 .key-label {
-  font-size: 7.5px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 800;
   fill: #1f2328;
 }
 .key-label.on-black {
   fill: #fff;
+  font-size: 10px;
 }
 .key-strings {
-  font-size: 9px;
+  font-size: 11px;
   fill: var(--text);
 }
 .octave-label {
@@ -1497,7 +1511,7 @@ input.narrow {
   line-height: 16px;
 }
 .tl-diagram-box .dot-label {
-  font-size: 11px;
+  font-size: 14px;
 }
 
 /* ---------- 再生 ---------- */
@@ -1879,7 +1893,7 @@ input.narrow {
 }
 .sheet-diagram {
   display: block;
-  width: 78px;
+  width: 104px;
   margin-top: 2px;
 }
 .sheet-diagram .tab-view {
@@ -2060,4 +2074,13 @@ input.narrow {
 }
 .chord-dialog-views .tab-view {
   max-width: 520px !important;
+}
+
+/* 小さく並べるコード図では、音名を大きく */
+.tab-view.compact .dot-label,
+.tab-view.compact .open-name {
+  font-size: 19px;
+}
+.tab-view.compact .fret-num {
+  font-size: 14px;
 }

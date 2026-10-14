@@ -75,6 +75,7 @@ export function normalizeSettings(v: unknown): DisplaySettings {
     showStrokes: bool("showStrokes"),
     tabLabelMode: mode("tabLabelMode"),
     pianoLabelMode: mode("pianoLabelMode"),
+    showOpenStrings: bool("showOpenStrings"),
   };
 }
 

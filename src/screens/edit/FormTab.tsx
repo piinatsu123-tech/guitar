@@ -204,6 +204,7 @@ function FormWorkbench({
           </button>
         </div>
         <TabView
+          showOpenStrings={settings.showOpenStrings}
           positions={positions}
           labelMode={settings.tabLabelMode}
           rootPc={rootPc}
@@ -343,7 +344,13 @@ function FormWorkbench({
                   <span>候補{i + 1}</span>
                   <span className="mono">{formShorthand(g.positions)}</span>
                 </span>
-                <TabView positions={g.positions} labelMode={settings.tabLabelMode} rootPc={rootPc} compact />
+                <TabView
+                  showOpenStrings={settings.showOpenStrings}
+                  positions={g.positions}
+                  labelMode={settings.tabLabelMode}
+                  rootPc={rootPc}
+                  compact
+                />
                 <span className="muted small">
                   {g.barre ? `セーハ${g.barre}F・` : ""}指{g.fingers}本
                 </span>
