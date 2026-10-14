@@ -14,6 +14,8 @@ export type AppState = {
   songs: Song[];
   settings: DisplaySettings;
   lastSongId?: string;
+  /** 削除した曲の印（端末間同期で削除を伝えるため） */
+  deleted?: { id: string; at: string }[];
 };
 
 export type KeyValueStore = Pick<Storage, "getItem" | "setItem">;
@@ -201,6 +203,9 @@ export function normalizeState(v: unknown): AppState {
     songs,
     settings: normalizeSettings(v.settings),
     lastSongId: typeof v.lastSongId === "string" ? v.lastSongId : undefined,
+    deleted: arr(v.deleted).filter(
+      (t): t is { id: string; at: string } => isObj(t) && typeof t.id === "string" && typeof t.at === "string",
+    ),
   };
 }
 

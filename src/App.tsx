@@ -6,6 +6,8 @@ import { EditScreen, type EditTab } from "./screens/edit/EditScreen";
 import { PlayScreen, type EditMode } from "./screens/PlayScreen";
 import { SongList } from "./screens/SongList";
 import { VERSION_LABEL } from "./version";
+import { SyncPanel, syncStatusText } from "./components/SyncPanel";
+import { useSync } from "./sync/useSync";
 import { exportSongs, importSongs, loadState, saveState, SCHEMA_VERSION, type AppState } from "./storage/repository";
 
 type Screen =
@@ -39,6 +41,7 @@ export function App() {
   );
   const [selectedChordId, setSelectedChordId] = useState<string | undefined>();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const sync = useSync(state, setState);
 
   // すべての変更をブラウザに保存する
   useEffect(() => {
@@ -130,7 +133,24 @@ export function App() {
             });
           }
         }}
-        onDelete={(id) => setState((st) => ({ ...st, songs: st.songs.filter((s) => s.id !== id) }))}
+        onDelete={(id) =>
+          setState((st) => ({
+            ...st,
+            songs: st.songs.filter((s) => s.id !== id),
+            // 削除をほかの端末へ伝えるための印
+            deleted: [...(st.deleted ?? []).filter((t) => t.id !== id), { id, at: new Date().toISOString() }],
+          }))
+        }
+        syncStatus={sync.status}
+        syncPanel={
+          <SyncPanel
+            config={sync.config}
+            status={sync.status}
+            onConnect={sync.connect}
+            onDisconnect={sync.disconnect}
+            onSyncNow={sync.syncNow}
+          />
+        }
         onExport={(ids) => {
           const songs = state.songs.filter((s) => ids.includes(s.id));
           const name = songs.length === 1 ? songs[0].title : `songs-${songs.length}`;
@@ -160,6 +180,7 @@ export function App() {
       {body}
       <footer className="app-footer" aria-label="バージョン">
         ギター演奏ノート {VERSION_LABEL}
+        {sync.status.kind !== "off" && <span className="sync-footer"> ・ {syncStatusText(sync.status)}</span>}
       </footer>
     </div>
   );

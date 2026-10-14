@@ -1,4 +1,6 @@
-import { useRef } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { syncStatusText } from "../components/SyncPanel";
+import type { SyncStatus } from "../sync/useSync";
 import type { Song } from "../model/types";
 import { VERSION_LABEL } from "../version";
 import { layoutSong, ticksPerMeasure } from "../music/timeline";
@@ -13,6 +15,8 @@ type Props = {
   onDelete: (id: string) => void;
   onExport: (ids: string[]) => void;
   onImport: (file: File) => void;
+  syncStatus: SyncStatus;
+  syncPanel: ReactNode;
 };
 
 export function SongList({
@@ -25,8 +29,11 @@ export function SongList({
   onDelete,
   onExport,
   onImport,
+  syncStatus,
+  syncPanel,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [syncOpen, setSyncOpen] = useState(false);
   const sorted = [...songs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return (
     <div className="song-list-screen">
@@ -45,6 +52,15 @@ export function SongList({
         </button>
         <button type="button" className="small-btn" onClick={onAddSample}>
           サンプル曲を追加
+        </button>
+        <button
+          type="button"
+          className={`small-btn sync-btn ${syncStatus.kind}`}
+          onClick={() => setSyncOpen((v) => !v)}
+          aria-expanded={syncOpen}
+          title={syncStatusText(syncStatus)}
+        >
+          {syncStatus.kind === "off" ? "端末間の同期" : `⇅ ${syncStatusText(syncStatus)}`}
         </button>
         <button type="button" className="small-btn" onClick={() => fileRef.current?.click()}>
           JSON を読み込む
@@ -69,6 +85,7 @@ export function SongList({
           }}
         />
       </div>
+      {syncOpen && syncPanel}
       {sorted.length === 0 && <p className="muted">保存された曲はありません。</p>}
       <ul className="song-list">
         {sorted.map((song) => {
@@ -108,7 +125,8 @@ export function SongList({
         })}
       </ul>
       <p className="muted small">
-        データはこのブラウザ内（localStorage）に保存されます。バックアップには「書き出す」を使ってください。
+        データはこのブラウザ内（localStorage）に保存されます。「端末間の同期」をつなぐと GitHub の非公開 Gist
+        にも保存され、ほかの端末と同期します。バックアップには「書き出す」も使えます。
       </p>
     </div>
   );

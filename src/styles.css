@@ -1814,3 +1814,22 @@ input.narrow {
 .sheet-panel .chip.used {
   border-color: var(--primary);
 }
+
+/* ---------- 端末間の同期 ---------- */
+
+.sync-panel .sync-steps {
+  margin: 0.4rem 0 0.6rem;
+  padding-left: 1.4rem;
+}
+.sync-panel .sync-token {
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-family: ui-monospace, monospace;
+}
+.sync-btn.error {
+  border-color: var(--warn, #b45309);
+  color: var(--warn, #b45309);
+}
+.sync-btn.ok {
+  border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+}

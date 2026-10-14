@@ -868,6 +868,123 @@ await check("パワーコード（5）を一覧から選べて、鍵盤をタッ
   await editMode("見る");
 });
 
+// 条件が成り立つまで待つ
+async function until(fn, ms = 10000) {
+  const end = Date.now() + ms;
+  for (;;) {
+    if (await fn()) return;
+    if (Date.now() > end) throw new Error("待ち時間切れ");
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+await check("端末間の同期: 2台で曲の追加・削除が伝わる（GitHub API は模擬）", async () => {
+  // GitHub の Gist API の模擬（Node 側のメモリに保存）
+  const gists = new Map();
+  const json = (route, status, body) =>
+    route.fulfill({
+      status,
+      contentType: "application/json",
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-headers": "*",
+        "access-control-allow-methods": "*",
+      },
+      body: JSON.stringify(body),
+    });
+  const fake = async (route) => {
+    const req = route.request();
+    if (req.method() === "OPTIONS") return json(route, 204, {});
+    if ((await req.headerValue("authorization")) !== "Bearer ghp_test") return json(route, 401, {});
+    const path = new globalThis.URL(req.url()).pathname;
+    if (path === "/user") return json(route, 200, { login: "tester" });
+    if (path === "/gists" && req.method() === "GET")
+      return json(
+        route,
+        200,
+        [...gists].map(([id, files]) => ({ id, files })),
+      );
+    if (path === "/gists" && req.method() === "POST") {
+      const id = `g${gists.size + 1}`;
+      gists.set(id, JSON.parse(req.postData()).files);
+      return json(route, 201, { id, files: gists.get(id) });
+    }
+    const id = path.split("/")[2];
+    if (!gists.has(id)) return json(route, 404, {});
+    if (req.method() === "PATCH") gists.set(id, { ...gists.get(id), ...JSON.parse(req.postData()).files });
+    return json(route, 200, { id, files: gists.get(id) });
+  };
+  const remoteTitles = () => {
+    const files = [...gists.values()][0];
+    return files
+      ? JSON.parse(files["guitar-player-sync.json"].content)
+          .songs.map((x) => x.title)
+          .sort()
+      : [];
+  };
+  // 開いたときは最後の曲の画面か曲一覧。曲一覧にそろえる
+  const toList = async (p) => {
+    await p.locator(".song-list-screen, .song-title-block").first().waitFor();
+    if (await p.getByRole("button", { name: "曲一覧へ戻る" }).count())
+      await p.getByRole("button", { name: "曲一覧へ戻る" }).click();
+  };
+  const device = async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1180, height: 820 } });
+    await ctx.route("https://api.github.com/**", fake);
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => pageErrors.push(e.message));
+    p.on("dialog", (d) => d.accept());
+    await p.goto(URL);
+    await toList(p);
+    return { ctx, p };
+  };
+  const titles = (p) =>
+    p
+      .locator(".song-item-title")
+      .allTextContents()
+      .then((t) => t.sort());
+  const connect = async (p, token) => {
+    await p.getByRole("button", { name: /同期/ }).first().click();
+    await p.getByLabel("GitHub のトークン").fill(token);
+    await p.getByRole("button", { name: "接続して同期" }).click();
+  };
+
+  const A = await device();
+  await connect(A.p, "ghp_wrong");
+  await A.p.getByRole("alert").filter({ hasText: "トークンが無効" }).waitFor();
+  await A.p.getByLabel("GitHub のトークン").fill("ghp_test");
+  await A.p.getByRole("button", { name: "接続して同期" }).click();
+  await A.p.getByRole("status").filter({ hasText: "同期済み" }).waitFor();
+  assert.deepEqual(remoteTitles(), ["サンプル：あさのうた"]);
+  // 曲を増やすと数秒後に自動で送られる
+  await A.p.getByRole("button", { name: "複製" }).click();
+  await until(() => remoteTitles().length === 2);
+
+  // 2台目：つなぐと取り込まれる（未編集のサンプル曲は持ち込まない）
+  const B = await device();
+  await connect(B.p, "ghp_test");
+  await until(
+    async () => (await titles(B.p)).length === 2 && (await titles(B.p)).includes("サンプル：あさのうた（コピー）"),
+  );
+  assert.deepEqual(await titles(B.p), ["サンプル：あさのうた", "サンプル：あさのうた（コピー）"]);
+  // 2台目で削除 → 1台目に伝わる
+  await B.p.locator(".song-item", { hasText: "（コピー）" }).getByRole("button", { name: "削除" }).click();
+  await until(() => remoteTitles().length === 1);
+  await A.p.getByRole("button", { name: "今すぐ同期" }).click();
+  await until(async () => (await titles(A.p)).length === 1);
+  assert.deepEqual(await titles(A.p), ["サンプル：あさのうた"]);
+  // 再読み込み後も接続が残り、削除した曲が戻ってこない
+  await A.p.reload();
+  await A.p
+    .getByText(/同期済み/)
+    .first()
+    .waitFor();
+  await toList(A.p);
+  assert.deepEqual(await titles(A.p), ["サンプル：あさのうた"]);
+  await A.ctx.close();
+  await B.ctx.close();
+});
+
 await check("ページエラーなし", async () => {
   assert.deepEqual(pageErrors, []);
 });
