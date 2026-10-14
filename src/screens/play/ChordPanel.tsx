@@ -119,6 +119,14 @@ const QUALITIES: [suffix: string, label: string][] = [
   ["dim", "dim"],
   ["aug", "aug"],
   ["m7b5", "m7♭5"],
+  ["dim7", "dim7"],
+  ["aug7", "aug7"],
+  ["9", "9"],
+  ["m9", "m9"],
+  ["maj9", "maj9"],
+  ["7b9", "7♭9"],
+  ["7#9", "7♯9"],
+  ["13", "13"],
 ];
 
 /** "F#m7/E" → { root: "F#", suffix: "m7", bass: "/E" } */

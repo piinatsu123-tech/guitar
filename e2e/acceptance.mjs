@@ -702,6 +702,32 @@ await check("新しい曲: 譜面のコード編集と曲情報が開き、コ�
   assert.equal(await page.locator(".score .tl-diagram:not(.continued)").count(), 6);
 });
 
+await check("aug・dim に 7th・テンションが付いたコードを入力・表示できる", async () => {
+  await editMode("コード");
+  await scoreSlot(1).click();
+  await page.getByRole("tab", { name: /コード「/ }).click();
+  // 一覧のボタンで aug7、入力欄で Cdim9
+  await page.getByRole("group", { name: "種類" }).getByRole("button", { name: "aug7", exact: true }).click();
+  assert.match(await page.locator(".ce-preview .analysis").textContent(), /✓ Gaug7（オーギュメント・セブンス）/);
+  await page.getByLabel("コード名").fill("Cdim9");
+  await page.getByLabel("コード名").press("Enter");
+  assert.match(await page.locator(".ce-preview .analysis").textContent(), /✓ Cdim9/);
+  assert.equal(await page.locator(".ce-preview .tab-view").count(), 1);
+  await page.getByLabel("コード名").fill("G7(♭9)");
+  await page.getByLabel("コード名").press("Enter");
+  assert.match(await page.locator(".ce-preview .analysis").textContent(), /✓ G7\(♭9\)（セブンス（♭9））/);
+  // まとめて入力でも
+  await page.getByRole("tab", { name: /セクション/ }).click();
+  await page.locator(".edit-panel summary").click();
+  await page.getByLabel("コード進行のテキスト").fill("| Caugmaj7 | Bm7b5 E7#9 | Am9 | D13 |");
+  await page.locator(".edit-panel").getByRole("button", { name: "適用" }).click();
+  assert.deepEqual(
+    (await page.locator(".score .tl-diagram:not(.continued) .tl-diagram-name").allTextContents()).slice(0, 5),
+    ["Caugmaj7", "Bm7b5", "E7#9", "Am9", "D13"],
+  );
+  assert.equal(await page.locator(".score .tl-measure").first().locator(".tl-diagram-box .tab-view").count(), 1);
+});
+
 await check("編集画面はコードフォームとリズムパターンだけ", async () => {
   await page.getByRole("button", { name: "フォーム・パターン" }).click();
   assert.deepEqual(await page.getByRole("tab").allTextContents(), ["コードフォーム", "リズムパターン"]);

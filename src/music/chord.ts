@@ -1,4 +1,5 @@
 // コード名の解析と、コードフォームの音楽的な検証。
+import { parseSuffix } from "./chordSuffix";
 import { midiAt, parsePitchClass, pitchClass, STRING_NUMBERS, type StringNumber } from "./pitch";
 
 /** 1つのコード種類の定義。新しい種類はこの表に追加するだけで解析・生成・検証に対応する。 */
@@ -65,12 +66,14 @@ export type ParsedChord = {
 /** "C", "F#m7", "Bbmaj7", "G/B" などを解析する。解析できなければ null。 */
 export function parseChord(name: string): ParsedChord | null {
   const trimmed = name.trim();
-  const m = /^([A-G](?:[#♯b♭])?)([^/]*)(?:\/([A-G](?:[#♯b♭])?))?$/.exec(trimmed);
+  // 6/9 は分数コードの「/」ではないので先に読み替える
+  const m = /^([A-G](?:[#♯b♭])?)([^/]*?(?:6\/9)?[^/]*)(?:\/([A-G](?:[#♯b♭])?))?$/.exec(trimmed);
   if (!m) return null;
   const root = parsePitchClass(m[1]);
   if (root === null) return null;
-  const suffix = m[2];
-  const quality = CHORD_QUALITIES.find((q) => q.suffixes.includes(suffix));
+  const suffix = m[2].replace("6/9", "69");
+  // よく使う名前は表から、それ以外（aug7・dim9・7♭9 など）は汎用パーサーで解析する
+  const quality = CHORD_QUALITIES.find((q) => q.suffixes.includes(suffix)) ?? parseSuffix(suffix);
   if (!quality) return null;
   const bass = m[3] ? parsePitchClass(m[3]) : null;
   const chordPcs = quality.intervals.map((i) => pitchClass(root + i));
