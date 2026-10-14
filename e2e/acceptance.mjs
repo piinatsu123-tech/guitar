@@ -221,6 +221,42 @@ await check("コードフォーム: 候補を選んで保存すると、歌詞�
   assert.ok(describes(await label(), frets));
 });
 
+await check(
+  "コードをタップで拡大: 大きなコード図と鍵盤、押さえ方をその場で変えられる（ここだけ／すべて）",
+  async () => {
+    const gLabel = (sec) =>
+      section(sec)
+        .getByRole("button", { name: "コード G を拡大" })
+        .first()
+        .locator(".tab-view")
+        .getAttribute("aria-label");
+    const before = { a: await gLabel("Aメロ"), s: await gLabel("サビ") };
+    await section("Aメロ").getByRole("button", { name: "コード G を拡大" }).click();
+    const dlg = page.getByRole("dialog", { name: "コード G" });
+    await dlg.waitFor();
+    assert.equal(await dlg.locator(".chord-dialog-views .tab-view").count(), 1);
+    assert.equal(await dlg.locator(".chord-dialog-views .piano-view").count(), 1);
+    assert.match(await dlg.locator(".analysis").textContent(), /✓ G/);
+    // ここだけ変える
+    await dlg.getByRole("radio", { name: "ここだけ" }).click();
+    const target = dlg.getByRole("button", { name: /^候補3 / });
+    await target.click();
+    assert.equal(await target.getAttribute("aria-pressed"), "true");
+    await dlg.getByRole("button", { name: "閉じる" }).click();
+    assert.equal(await page.getByRole("dialog").count(), 0);
+    assert.notEqual(await gLabel("Aメロ"), before.a);
+    assert.equal(await gLabel("サビ"), before.s);
+    // すべて変える（Esc で閉じる）
+    await section("サビ").getByRole("button", { name: "コード G を拡大" }).first().click();
+    await dlg.getByRole("button", { name: /^候補1 / }).click();
+    await page.keyboard.press("Escape");
+    assert.equal(await page.getByRole("dialog").count(), 0);
+    assert.equal(await gLabel("Aメロ"), await gLabel("サビ"));
+    await page.reload();
+    assert.equal(await gLabel("Aメロ"), await gLabel("サビ"));
+  },
+);
+
 await check("新しい曲: 歌詞を貼り付けて、文字にコードを置くとそのまま曲になる", async () => {
   await page.getByRole("button", { name: "曲一覧へ戻る" }).click();
   await page.getByRole("button", { name: "＋ 新しい曲" }).click();

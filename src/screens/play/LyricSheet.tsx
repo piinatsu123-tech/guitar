@@ -32,6 +32,8 @@ type Props = {
   startWithPaste?: boolean;
   /** 通し再生中の位置（セクション・行・その行の何小節目か） */
   playhead?: { section: number; line: number; bar: number } | null;
+  /** 見るときにコードをタップした（拡大表示） */
+  onOpenChord?: (chordId: string) => void;
 };
 
 /**
@@ -39,7 +41,15 @@ type Props = {
  * コードの長さやタイミングは持たず、どの文字から弾き始めるかだけを置く。
  * 編集中は文字をタップしてコードを置く。シートは曲データから作る見え方なので、置いたコードはそのまま保存される。
  */
-export function LyricSheet({ song, settings, onSongChange, editing, startWithPaste = false, playhead = null }: Props) {
+export function LyricSheet({
+  song,
+  settings,
+  onSongChange,
+  editing,
+  startWithPaste = false,
+  playhead = null,
+  onOpenChord,
+}: Props) {
   const sheet = useMemo(() => songToSheet(song), [song]);
   const chordById = useMemo(() => {
     const map = new Map<string, ChordEvent>();
@@ -207,12 +217,30 @@ export function LyricSheet({ song, settings, onSongChange, editing, startWithPas
                 return (
                   <span key={seg.at} className={`sheet-seg${shown.length ? " has-chord" : ""}`}>
                     <span className="sheet-marks" onClick={editing ? () => select(seg.at) : undefined}>
-                      {shown.map((mk, i) => (
-                        <span key={i} className="sheet-mark">
-                          <span className={`sheet-chord${mk.name === NO_CHORD ? " nc" : ""}`}>{mk.name}</span>
-                          {diagram(mk.chordId)}
-                        </span>
-                      ))}
+                      {shown.map((mk, i) => {
+                        const inner = (
+                          <>
+                            <span className={`sheet-chord${mk.name === NO_CHORD ? " nc" : ""}`}>{mk.name}</span>
+                            {diagram(mk.chordId)}
+                          </>
+                        );
+                        // 見るときはコードをタップで拡大（押さえ方の変更もここから）
+                        return !editing && onOpenChord && mk.chordId && mk.name !== NO_CHORD ? (
+                          <button
+                            key={i}
+                            type="button"
+                            className="sheet-mark sheet-mark-btn"
+                            aria-label={`コード ${mk.name} を拡大`}
+                            onClick={() => onOpenChord(mk.chordId!)}
+                          >
+                            {inner}
+                          </button>
+                        ) : (
+                          <span key={i} className="sheet-mark">
+                            {inner}
+                          </span>
+                        );
+                      })}
                     </span>
                     <span className="sheet-text">
                       {seg.cells.map((at) => {

@@ -3,6 +3,7 @@ import { player } from "../audio/player";
 import { buildSongRhythmSchedule, type RhythmCue } from "../audio/schedule";
 import { SongInfoForm } from "../components/SongInfoForm";
 import { LyricSheet } from "./play/LyricSheet";
+import { ChordDetailDialog } from "./play/ChordDetailDialog";
 import type { DisplaySettings, NoteLabelMode, Song } from "../model/types";
 
 type Props = {
@@ -40,6 +41,7 @@ export function PlayScreen({
   const [editing, setEditing] = useState(startEditing);
   const [showSongInfo, setShowSongInfo] = useState(startEditing);
   const [showDisplay, setShowDisplay] = useState(false);
+  const [openChordId, setOpenChordId] = useState<string | null>(null);
   // 編集の履歴（「元に戻す／やり直す」）
   const [past, setPast] = useState<Song[]>([]);
   const [future, setFuture] = useState<Song[]>([]);
@@ -238,7 +240,18 @@ export function PlayScreen({
         </div>
       )}
 
+      {openChordId && (
+        <ChordDetailDialog
+          song={song}
+          chordId={openChordId}
+          settings={settings}
+          onSongChange={commit}
+          onEditForms={onEditForms}
+          onClose={() => setOpenChordId(null)}
+        />
+      )}
       <LyricSheet
+        onOpenChord={setOpenChordId}
         playhead={playhead}
         song={song}
         settings={settings}
