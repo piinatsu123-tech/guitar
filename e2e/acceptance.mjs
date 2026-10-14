@@ -368,9 +368,9 @@ await check("リズム編集: ▶ 試聴 と停止", async () => {
 });
 
 // 録音が始まった瞬間から、ページ内で正確な間隔でキーを押す
-async function tapAlong(offsetsSec, keys) {
+async function tapAlong(offsetsSec, keys, waitText = "録音中") {
   await page.evaluate(
-    ({ offsetsSec, keys }) =>
+    ({ offsetsSec, keys, waitText }) =>
       new Promise((resolve) => {
         const status = document.querySelector(".tap-status");
         const go = () => {
@@ -380,14 +380,14 @@ async function tapAlong(offsetsSec, keys) {
           setTimeout(resolve, offsetsSec[offsetsSec.length - 1] * 1000 + 50);
         };
         const obs = new MutationObserver(() => {
-          if (status.textContent.includes("録音中")) {
+          if (status.textContent.includes(waitText)) {
             obs.disconnect();
             go();
           }
         });
         obs.observe(status, { childList: true, subtree: true, characterData: true });
       }),
-    { offsetsSec, keys },
+    { offsetsSec, keys, waitText },
   );
 }
 
@@ -464,6 +464,61 @@ await check("タップ入力: 2小節まとめて採譜（1小節目 4分×4、2
   assert.ok(Math.abs(a.x - b.x) < 2 && b.y > a.y, JSON.stringify([a, b]));
   assert.equal(await page.locator(".pattern-editor .timeline .tl-measure").count(), 2);
   assert.equal(await page.locator(".pattern-editor .form-grid select").first().inputValue(), "96");
+  await page.getByRole("button", { name: "破棄" }).click();
+  await page.getByRole("button", { name: "‹ 演奏画面" }).click();
+});
+
+const stepCells = async (n) => {
+  const steps = page.locator(".step");
+  const cells = [];
+  for (let i = 0; i < n; i++) {
+    cells.push(
+      (await steps.nth(i).locator(".step-state").textContent()) +
+        (await steps.nth(i).locator(".step-action").textContent()),
+    );
+  }
+  return cells;
+};
+const EIGHTHS_UPDOWN = ["♪↓", "♪↑", "♪↓", "♪↑", "♪↓", "♪↑", "♪↓", "♪↑"];
+
+await check("タップ入力: 16分グリッドでも 8分を叩けば ↓↑（8ビートとして判断）", async () => {
+  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("tab", { name: "リズム" }).click();
+  await page.getByRole("radio", { name: "16分" }).click();
+  await page.getByRole("button", { name: "● 録音" }).click();
+  const e = 60 / 96 / 2;
+  await tapAlong(Array.from({ length: 8 }, (_, i) => i * e));
+  await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 6000 });
+  const cells = (await stepCells(16)).filter((c) => c.startsWith("♪"));
+  assert.deepEqual(cells, EIGHTHS_UPDOWN);
+});
+
+await check("タップ入力: 音が 200ms 遅れる環境でも「補正を測る」で 8分の ↓↑ が正しく入る", async () => {
+  await page.getByRole("radio", { name: "8分" }).click();
+  const e = 60 / 96 / 2;
+  const LAT = 0.2;
+  const eighths = Array.from({ length: 8 }, (_, i) => i * e + LAT);
+  // 補正なし：ずれて入る（シミュレーションで見つけた症状の再現）
+  await page.getByRole("button", { name: "● 録音" }).click();
+  await tapAlong(eighths);
+  await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 6000 });
+  assert.notDeepEqual(await stepCells(8), EIGHTHS_UPDOWN);
+  // 補正を測る：4分のクリックに合わせて2小節（8回）、同じく 200ms 遅れ
+  await page.getByRole("button", { name: "補正を測る" }).click();
+  await tapAlong(
+    Array.from({ length: 8 }, (_, i) => i * 2 * e + LAT),
+    undefined,
+    "補正を測定中",
+  );
+  await page.getByText(/補正を \d+ms にしました/).waitFor({ timeout: 8000 });
+  const ms = Number((await page.locator(".tap-offset strong").textContent()).replace(/[^\d-]/g, ""));
+  assert.ok(Math.abs(ms - 200) <= 25, `測った補正 ${ms}ms`);
+  // 補正後：正しく入る
+  await page.getByRole("button", { name: "● 録音" }).click();
+  await tapAlong(eighths);
+  await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 6000 });
+  assert.deepEqual(await stepCells(8), EIGHTHS_UPDOWN);
+  await page.getByRole("button", { name: "0に戻す" }).click();
   await page.getByRole("button", { name: "破棄" }).click();
   await page.getByRole("button", { name: "‹ 演奏画面" }).click();
 });

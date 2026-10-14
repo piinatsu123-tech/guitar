@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoDirection, describeTiming, transcribeTaps } from "../tapRhythm";
+import { autoDirection, describeTiming, detectFeel, estimateOffset, transcribeTaps } from "../tapRhythm";
 
 // ♩=120 → 1 tick = 0.5 / 12 秒、4分音符 = 0.5秒、8分 = 0.25秒
 const spt = 0.5 / 12;
@@ -36,8 +36,13 @@ describe("タップからの採譜", () => {
     ]);
   });
 
-  it("16分グリッドでは 1 e & a = ↓ ↑ ↓ ↑", () => {
-    expect([0, 3, 6, 9].map((t) => autoDirection(t, 3))).toEqual(["downstroke", "upstroke", "downstroke", "upstroke"]);
+  it("16ビート（16分の裏を叩いた）では 1 e & a = ↓ ↑ ↓ ↑", () => {
+    expect([0, 3, 6, 9].map((t) => autoDirection(t, "16beat"))).toEqual([
+      "downstroke",
+      "upstroke",
+      "downstroke",
+      "upstroke",
+    ]);
     const r = transcribeTaps([{ time: 0 }, { time: 0.125 }, { time: 0.25 }], opts16);
     expect(summary(r).map((e) => [e[0], e[3]])).toEqual([
       [0, "downstroke"],
@@ -83,5 +88,43 @@ describe("タップからの採譜", () => {
     expect(describeTiming([5, -5, 10])).toBe("ほぼぴったり・安定しています");
     expect(describeTiming([60, 70, 50])).toBe("平均 60ms 遅れ気味・安定しています");
     expect(describeTiming([-40, -80, 0])).toContain("走り気味");
+  });
+
+  it("16分グリッドでも、8分だけを叩いたら 8ビート（& = ↑）", () => {
+    const e = 0.25;
+    const r = transcribeTaps(
+      Array.from({ length: 8 }, (_, i) => ({ time: i * e })),
+      opts16,
+    );
+    expect(r.events.map((x) => x.guitarAction)).toEqual(
+      Array.from({ length: 8 }, (_, i) => (i % 2 ? "upstroke" : "downstroke")),
+    );
+    expect(detectFeel([0, 6, 12])).toBe("8beat");
+    expect(detectFeel([0, 3, 6])).toBe("16beat");
+  });
+
+  it("タイミング補正の測定：遅れ 200ms・ゆらぎありでも中央値で求まる", () => {
+    const beat = 0.625; // ♩=96
+    const taps = [0.21, 0.625 + 0.18, 1.25 + 0.2, 1.875 + 0.23, 2.5 + 0.19, 3.125 + 0.21, 3.75 + 0.6 /* 外れ値 */];
+    expect(estimateOffset(taps, beat)).toBeCloseTo(0.2, 2);
+    expect(estimateOffset([-0.03, 0.6, 1.22], beat)).toBeCloseTo(-0.03, 3);
+    expect(estimateOffset([0.1], beat)).toBeNull();
+  });
+
+  it("補正済みなら 200ms 遅れる環境でも 8分の ↓↑ が正しく入る", () => {
+    const e = 0.25;
+    const lat = 0.2;
+    const raw = Array.from({ length: 8 }, (_, i) => i * e + lat);
+    const offset = estimateOffset(
+      [0, 0.5, 1, 1.5].map((t) => t + lat),
+      0.5,
+    )!;
+    const r = transcribeTaps(
+      raw.map((t) => ({ time: t - offset })),
+      opts8,
+    );
+    expect(r.events.map((x) => [x.startTick, x.guitarAction])).toEqual(
+      Array.from({ length: 8 }, (_, i) => [i * 6, i % 2 ? "upstroke" : "downstroke"]),
+    );
   });
 });

@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { player } from "../../audio/player";
 import { buildClickTrack, secondsPerTick } from "../../audio/schedule";
 import type { SoundingNote } from "../../music/chord";
-import { autoDirection, describeTiming, transcribeTaps, type Tap, type Transcription } from "../../music/tapRhythm";
+import {
+  autoDirection,
+  describeTiming,
+  estimateOffset,
+  transcribeTaps,
+  type Tap,
+  type Transcription,
+} from "../../music/tapRhythm";
 import { EIGHTH } from "../../music/timeline";
 import { newId } from "../../model/factory";
 import type { GuitarAction, RhythmEvent, RhythmPattern, TimeSignature } from "../../model/types";
@@ -20,6 +27,26 @@ type Props = {
 };
 
 type Phase = "idle" | "countin" | "recording";
+type Mode = "record" | "calibrate";
+
+// タイミング補正（ミリ秒）。端末やイヤホンによる音の遅れなので、曲ではなくこのブラウザに保存する。
+const OFFSET_KEY = "guitar-player/tap-offset-ms";
+function loadOffset(): number {
+  try {
+    const v = Number(localStorage.getItem(OFFSET_KEY));
+    return Number.isFinite(v) ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+function saveOffset(ms: number) {
+  try {
+    localStorage.setItem(OFFSET_KEY, String(Math.round(ms)));
+  } catch {
+    // 保存できなくても、この画面の間は使える
+  }
+}
+const CALIBRATION_BARS = 2;
 
 const SPEEDS = [
   [1, "原曲の速さ"],
@@ -47,11 +74,20 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
     return BAR_CHOICES.includes(n) ? n : 1;
   });
   const recordTicks = bars * measureTicks;
-  const session = useRef<{ recordStart: number; taps: Tap[]; cancelled: boolean } | null>(null);
+  const session = useRef<{ recordStart: number; taps: Tap[]; cancelled: boolean; mode: Mode } | null>(null);
+  const [mode, setMode] = useState<Mode>("record");
+  const [offsetMs, setOffsetMs] = useState(loadOffset);
+  const [calibrationMessage, setCalibrationMessage] = useState<string | null>(null);
+  const updateOffset = (ms: number) => {
+    const v = Math.max(-400, Math.min(400, Math.round(ms)));
+    setOffsetMs(v);
+    saveOffset(v);
+  };
 
   const recTempo = Math.round(tempo * speed);
   const spt = secondsPerTick(recTempo);
   const recordSeconds = recordTicks * spt;
+  const activeSeconds = mode === "calibrate" ? CALIBRATION_BARS * measureTicks * spt : recordSeconds;
   const barSeconds = measureTicks * spt;
   const [currentBar, setCurrentBar] = useState(1);
   const beatSeconds = (60 / recTempo) * (4 / timeSignature.denominator);
@@ -59,11 +95,12 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
   const tap = (action?: GuitarAction) => {
     const s = session.current;
     if (!s) return;
+    // 記録は補正前の時刻で残し、採譜・測定のときに補正する
     const time = player.heardTime() - s.recordStart;
     s.taps.push({ time, action });
     setTapCount(s.taps.length);
-    const tick = Math.round(time / spt / gridTicks) * gridTicks;
-    const dir = action ?? autoDirection(tick, gridTicks);
+    const tick = Math.round((time - offsetMs / 1000) / spt / gridTicks) * gridTicks;
+    const dir = action ?? autoDirection(tick, tick % 6 === 0 ? "8beat" : "16beat");
     player.strumNow(notes, dir === "upstroke" ? "up" : "down");
   };
 
@@ -79,7 +116,7 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
           setCountdown(Math.ceil(-t / beatSeconds - 1e-6));
         } else {
           if (phase === "countin") setPhase("recording");
-          setProgress(Math.min(1, t / recordSeconds));
+          setProgress(Math.min(1, t / activeSeconds));
           setCurrentBar(Math.min(bars, Math.floor(t / barSeconds) + 1));
         }
       }
@@ -87,7 +124,7 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [phase, beatSeconds, recordSeconds, barSeconds, bars]);
+  }, [phase, beatSeconds, activeSeconds, barSeconds, bars]);
 
   // キーボード：スペース＝自動、↓／↑＝向きを指定
   useEffect(() => {
@@ -107,13 +144,16 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
 
   useEffect(() => () => player.stop(), []);
 
-  const start = async () => {
+  const start = async (m: Mode) => {
     setResult(null);
+    setCalibrationMessage(null);
     setTapCount(0);
     setProgress(0);
-    const track = buildClickTrack(recTempo, timeSignature, timeSignature.numerator, recordTicks);
+    setMode(m);
+    const ticks = m === "calibrate" ? CALIBRATION_BARS * measureTicks : recordTicks;
+    const track = buildClickTrack(recTempo, timeSignature, timeSignature.numerator, ticks);
     setCurrentBar(1);
-    session.current = { recordStart: Infinity, taps: [], cancelled: false };
+    session.current = { recordStart: Infinity, taps: [], cancelled: false, mode: m };
     setCountdown(timeSignature.numerator);
     setPhase("countin");
     const { start: t0 } = await player.play(track, {
@@ -122,7 +162,21 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
         session.current = null;
         setPhase("idle");
         if (!s || s.cancelled) return;
-        const r = transcribeTaps(s.taps, { secondsPerTick: spt, lengthTicks: recordTicks, gridTicks });
+        if (s.mode === "calibrate") {
+          const offset = estimateOffset(
+            s.taps.map((t) => t.time),
+            beatSeconds,
+          );
+          if (offset === null) {
+            setCalibrationMessage("タップが少なすぎて測れませんでした。クリックに合わせて毎拍タップしてください。");
+          } else {
+            updateOffset(offset * 1000);
+            setCalibrationMessage(`補正を ${Math.round(offset * 1000)}ms にしました。`);
+          }
+          return;
+        }
+        const corrected = s.taps.map((t) => ({ ...t, time: t.time - offsetMs / 1000 }));
+        const r = transcribeTaps(corrected, { secondsPerTick: spt, lengthTicks: recordTicks, gridTicks });
         setResult(r);
         setUndo({ events: pattern.events, lengthTicks: pattern.lengthTicks });
         onApply(
@@ -179,7 +233,7 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
             ■ 中止
           </button>
         ) : (
-          <button type="button" className="small-btn primary" onClick={() => void start()}>
+          <button type="button" className="small-btn primary" onClick={() => void start("record")}>
             ● 録音
           </button>
         )}
@@ -198,9 +252,47 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
         )}
       </div>
 
+      <div className="btn-row tap-offset">
+        <span className="small">
+          タイミング補正 <strong>{offsetMs > 0 ? `+${offsetMs}` : offsetMs}ms</strong>
+        </span>
+        <button type="button" className="small-btn" onClick={() => void start("calibrate")} disabled={busy}>
+          補正を測る
+        </button>
+        <button
+          type="button"
+          className="small-btn"
+          onClick={() => updateOffset(offsetMs - 10)}
+          disabled={busy}
+          aria-label="補正を10ms減らす"
+        >
+          −10
+        </button>
+        <button
+          type="button"
+          className="small-btn"
+          onClick={() => updateOffset(offsetMs + 10)}
+          disabled={busy}
+          aria-label="補正を10ms増やす"
+        >
+          ＋10
+        </button>
+        <button type="button" className="small-btn" onClick={() => updateOffset(0)} disabled={busy || offsetMs === 0}>
+          0に戻す
+        </button>
+        <span className="muted small">
+          ↓↑ が逆になる・音符が1つずれる・8分が入らないときは「補正を測る」で、クリックに合わせて4分音符で{" "}
+          {CALIBRATION_BARS}小節タップしてください（Bluetooth
+          イヤホンなどで音が遅れる環境の補正。この端末に保存されます）。
+        </span>
+      </div>
+
       <div className={`tap-status ${phase}`} role="status" aria-live="polite">
         {phase === "countin" && <span className="tap-count">カウント {countdown}</span>}
-        {phase === "recording" && (
+        {phase === "recording" && mode === "calibrate" && (
+          <span className="tap-count">補正を測定中… クリックに合わせて毎拍タップ（{tapCount}回）</span>
+        )}
+        {phase === "recording" && mode === "record" && (
           <span className="tap-count">
             録音中 {currentBar}/{bars}小節… タップ {tapCount}回
           </span>
@@ -211,7 +303,8 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
             {result.ignored > 0 && `（範囲外・重複のタップ ${result.ignored}回は除外）`}
           </span>
         )}
-        {phase === "idle" && !result && <span className="muted">録音を押してください</span>}
+        {phase === "idle" && calibrationMessage && <span>{calibrationMessage}</span>}
+        {phase === "idle" && !result && !calibrationMessage && <span className="muted">録音を押してください</span>}
       </div>
       <div className="tap-progress" aria-hidden>
         <span style={{ width: `${(phase === "recording" ? progress : phase === "idle" && result ? 1 : 0) * 100}%` }} />
