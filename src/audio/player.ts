@@ -1,10 +1,10 @@
 // Web Audio による再生。スケジュール（schedule.ts）の各イベントを音に変える。
 // 同じ VoiceRenderer をリアルタイム再生とオフライン描画（検証用）の両方で使う。
-import type { SoundingNote } from "../music/chord";
 import type { StringNumber } from "../music/pitch";
 import type { AudioEvent, Schedule } from "./schedule";
 import { pluckWaveform } from "./synth";
 
+export const TAP_HZ = 440;
 const STRUM_GAP_DOWN = 0.012; // ダウンストロークで隣の弦を鳴らすまでの間隔（秒）
 const STRUM_GAP_UP = 0.009;
 const RELEASE = 0.015; // 弦を止めるときの減衰の時定数（秒）
@@ -96,6 +96,23 @@ export class VoiceRenderer {
     osc.stop(when + 0.05);
   }
 
+  /**
+   * タップの手応え音。クリック（1000/1600Hz のサイン波）とかぶらないよう、
+   * 低めの三角波を 30ms だけ、控えめな音量で鳴らす。音程はいつも同じ。
+   */
+  private tapBlip(when: number) {
+    const osc = this.ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.value = TAP_HZ;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(0.18, when + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + 0.03);
+    osc.connect(gain).connect(this.dest);
+    osc.start(when);
+    osc.stop(when + 0.035);
+  }
+
   apply(e: AudioEvent, when: number) {
     switch (e.kind) {
       case "strum": {
@@ -117,6 +134,9 @@ export class VoiceRenderer {
         break;
       case "click":
         this.click(when, e.accent);
+        break;
+      case "tap":
+        this.tapBlip(when);
         break;
     }
   }
@@ -217,11 +237,10 @@ export class GuitarPlayer {
     return ctx.currentTime - (ctx.baseLatency || 0) - (ctx.outputLatency || 0);
   }
 
-  /** タップの手応えとして、すぐにストロークを鳴らす */
-  strumNow(notes: SoundingNote[], direction: "down" | "up") {
-    if (!this.ctx || !this.renderer || notes.length === 0) return;
-    const ns = direction === "down" ? notes : notes.slice(-4);
-    this.renderer.apply({ kind: "strum", time: 0, direction, notes: ns }, this.ctx.currentTime);
+  /** タップの手応え音をすぐに鳴らす */
+  tapSound() {
+    if (!this.ctx || !this.renderer) return;
+    this.renderer.apply({ kind: "tap", time: 0 }, this.ctx.currentTime);
   }
 
   stop() {

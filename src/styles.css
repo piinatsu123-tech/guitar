@@ -1670,3 +1670,67 @@ input.narrow {
 .edit-panel .lyric-input {
   flex: 1 1 auto;
 }
+
+/* ---------- 譜面でのコード編集（大きなパネル） ---------- */
+
+.edit-panel.chord-panel {
+  max-height: 72vh;
+}
+.chord-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px 20px;
+}
+@media (min-width: 900px) {
+  .chord-editor-grid {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+  }
+}
+.chord-name-input.big {
+  font-size: 1.6rem;
+  width: 160px;
+  min-height: 52px;
+}
+.ce-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+.ce-palette .chip {
+  min-width: 52px;
+  min-height: 44px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.chord-panel .small-btn {
+  min-height: 44px;
+  font-size: 0.95rem;
+}
+.chord-panel .beats input {
+  min-height: 44px;
+}
+.ce-preview {
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+}
+@media (max-width: 899px) {
+  .ce-preview {
+    border-left: 0;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+  }
+}
+.ce-preview-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ce-preview-name {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--accent);
+}

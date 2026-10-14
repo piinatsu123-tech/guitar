@@ -20,7 +20,9 @@ export type AudioEvent =
   | { kind: "pluck"; time: number; notes: SoundingNote[] }
   | { kind: "mute"; time: number }
   | { kind: "damp"; time: number }
-  | { kind: "click"; time: number; accent: boolean };
+  | { kind: "click"; time: number; accent: boolean }
+  /** タップ録音の手応え音（音程の変わらない短い電子音） */
+  | { kind: "tap"; time: number };
 
 export type Schedule = {
   events: AudioEvent[];

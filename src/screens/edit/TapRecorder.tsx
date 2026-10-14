@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { player } from "../../audio/player";
 import { buildClickTrack, secondsPerTick } from "../../audio/schedule";
-import type { SoundingNote } from "../../music/chord";
-import {
-  autoDirection,
-  describeTiming,
-  estimateOffset,
-  transcribeTaps,
-  type Tap,
-  type Transcription,
-} from "../../music/tapRhythm";
+import { describeTiming, estimateOffset, transcribeTaps, type Tap, type Transcription } from "../../music/tapRhythm";
 import { EIGHTH, SIXTEENTH } from "../../music/timeline";
 import { newId } from "../../model/factory";
 import type { GuitarAction, RhythmEvent, TimeSignature } from "../../model/types";
@@ -19,10 +11,6 @@ type Props = {
   current: { events: RhythmEvent[]; lengthTicks: number };
   tempo: number;
   timeSignature: TimeSignature;
-  /** タップしたときに鳴らすコードの音 */
-  notes: SoundingNote[];
-  /** 位置ごとに鳴らすコードを変える場合（曲の小節に録音するとき）。tick は録音範囲の頭から */
-  notesAt?: (tick: number) => SoundingNote[];
   measureTicks: number;
   /** 録音する長さを固定する（譜面で選んだ小節に録音するとき） */
   fixedLengthTicks?: number;
@@ -69,17 +57,7 @@ const BAR_CHOICES = [1, 2, 4, 8];
 
 type Resolution = "auto" | typeof EIGHTH | typeof SIXTEENTH;
 
-export function TapRecorder({
-  current,
-  tempo,
-  timeSignature,
-  notes,
-  notesAt,
-  measureTicks,
-  fixedLengthTicks,
-  onUndo,
-  onApply,
-}: Props) {
+export function TapRecorder({ current, tempo, timeSignature, measureTicks, fixedLengthTicks, onUndo, onApply }: Props) {
   // 採譜の細かさ。自動なら叩いたリズムから 8分／16分 を決める
   const [resolution, setResolution] = useState<Resolution>("auto");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -120,10 +98,8 @@ export function TapRecorder({
     const time = player.heardTime() - s.recordStart;
     s.taps.push({ time, action });
     setTapCount(s.taps.length);
-    const fb = resolution === "auto" ? SIXTEENTH : resolution;
-    const tick = Math.round((time - offsetMs / 1000) / spt / fb) * fb;
-    const dir = action ?? autoDirection(tick, tick % 6 === 0 ? "8beat" : "16beat");
-    player.strumNow(notesAt ? notesAt(Math.max(0, tick)) : notes, dir === "upstroke" ? "up" : "down");
+    // 手応えは短い電子音（クリックを聞き取りやすいように、ギターの音は鳴らさない）
+    player.tapSound();
   };
 
   // 録音中の表示（カウントダウンと進行バー）

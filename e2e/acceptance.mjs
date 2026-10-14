@@ -509,8 +509,9 @@ await check("タップ入力: 16分グリッドでも 8分を叩けば ↓↑（
   const e = 60 / 96 / 2;
   await tapAlong(Array.from({ length: 8 }, (_, i) => i * e));
   await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 6000 });
-  const cells = (await stepCells(16)).filter((c) => c.startsWith("♪"));
-  assert.deepEqual(cells, EIGHTHS_UPDOWN);
+  // 8分で採譜されたので、マス目も8分に切り替わる
+  assert.equal(await page.locator(".step").count(), 8);
+  assert.deepEqual(await stepCells(8), EIGHTHS_UPDOWN);
 });
 
 await check("タップ入力: 音が 200ms 遅れる環境でも「補正を測る」で 8分の ↓↑ が正しく入る", async () => {

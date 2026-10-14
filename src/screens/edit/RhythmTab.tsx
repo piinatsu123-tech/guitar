@@ -256,11 +256,10 @@ function PatternEditor({
         current={pattern}
         tempo={song.tempo}
         timeSignature={ts}
-        notes={previewNotes()}
         measureTicks={m}
         onApply={(events, lengthTicks, gridTicks) => {
-          // マス目を採譜に使った細かさに合わせる（16分の結果を8分のマス目で丸めないように）
-          if (gridTicks && gridTicks < stepTicks) setStepTicks(gridTicks);
+          // マス目を採譜に使った細かさに合わせる（16分の結果を8分で丸めない・8分の結果は8分で見やすく）
+          if (gridTicks) setStepTicks(gridTicks);
           onChange({ ...pattern, events, lengthTicks });
         }}
       />

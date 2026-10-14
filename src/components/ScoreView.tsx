@@ -51,13 +51,16 @@ export function ScoreView({
     };
   }, [song]);
 
-  // 選択中のコードが画面外に出たら見える位置までスクロールする（前／次ボタン・キー操作用）
+  // 選択中のコードが見えなくなったら、見える位置までスクロールする（前／次・キー操作・再生用）。
+  // 下に編集パネルが出ているときは、その上に来るようにする。
   useEffect(() => {
     const el = ref.current?.querySelector<HTMLElement>(".tl-slot.selected");
     if (!el) return;
     const r = el.getBoundingClientRect();
-    if (r.top < 80 || r.bottom > window.innerHeight - 80) {
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    const panel = document.querySelector<HTMLElement>(".edit-panel, .measure-panel");
+    const visibleBottom = window.innerHeight - (panel ? panel.getBoundingClientRect().height + 80 : 80);
+    if (r.top < 80 || r.bottom > visibleBottom) {
+      window.scrollBy({ top: r.top - 120, behavior: "smooth" });
     }
   }, [selectedChordId]);
 

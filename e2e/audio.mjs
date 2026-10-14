@@ -79,6 +79,45 @@ const result = await page.evaluate(async () => {
     peak: Math.max(...data.map(Math.abs)),
   };
 });
+// タップの手応え音：短く（40ms 以内に消える）、音程が一定で、クリックより低い
+const tap = await page.evaluate(async () => {
+  const { renderOffline } = await import("/src/audio/player.ts");
+  const sr = 22050;
+  const data = await renderOffline(
+    {
+      events: [
+        { kind: "tap", time: 0.1 },
+        { kind: "tap", time: 0.3 },
+        { kind: "click", time: 0.5, accent: false },
+      ],
+      chordStarts: [],
+      duration: 0.7,
+    },
+    sr,
+    0,
+  );
+  const seg = (a, b) => data.slice(Math.floor(a * sr), Math.floor(b * sr));
+  const peak = (x) => Math.max(...x.map(Math.abs));
+  // 区間内のゼロ交差の数 ÷ 2 ÷ 長さ ≒ 周波数
+  const hz = (x, secs) => {
+    let n = 0;
+    for (let i = 1; i < x.length; i++) if (x[i - 1] < 0 !== x[i] < 0) n++;
+    return n / 2 / secs;
+  };
+  return {
+    tapPeak: peak(seg(0.1, 0.13)),
+    afterTap: peak(seg(0.14, 0.29)),
+    tapHz1: hz(seg(0.1, 0.125), 0.025),
+    tapHz2: hz(seg(0.3, 0.325), 0.025),
+    clickHz: hz(seg(0.5, 0.525), 0.025),
+  };
+});
+console.log(JSON.stringify(tap));
+assert.ok(tap.tapPeak > 0.05, "タップ音が鳴る");
+assert.ok(tap.afterTap < 0.001, "タップ音は 40ms 以内に消える（クリックを邪魔しない）");
+assert.ok(Math.abs(tap.tapHz1 - 440) < 60 && Math.abs(tap.tapHz2 - 440) < 60, "タップ音は 440Hz で一定");
+assert.ok(tap.clickHz > tap.tapHz1 * 1.8, "クリックとは高さが違って聞き分けられる");
+
 await browser.close();
 await server.close();
 

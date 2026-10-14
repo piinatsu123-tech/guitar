@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { formShorthand, parseChord } from "../../music/chord";
+import { FormAnalysisView } from "../../components/FormAnalysisView";
+import { PianoView } from "../../components/PianoView";
+import { TabView } from "../../components/TabView";
+import { formShorthand, parseChord, soundingNotes } from "../../music/chord";
 import { beatsToTicks, ticksPerMeasure, ticksToBeats } from "../../music/timeline";
 import { applyProgression, parseProgressionText, progressionToText } from "../../model/progressionText";
 import {
@@ -19,10 +22,11 @@ import {
   updateChord,
   updateSection,
 } from "../../model/songOps";
-import type { Song } from "../../model/types";
+import type { DisplaySettings, Song } from "../../model/types";
 
 type Props = {
   song: Song;
+  settings: DisplaySettings;
   chordId: string | undefined;
   onSongChange: (song: Song) => void;
   onSelectChord: (id: string) => void;
@@ -30,7 +34,7 @@ type Props = {
 };
 
 /** 譜面で選んだコードと、そのセクションを編集するパネル */
-export function ChordPanel({ song, chordId, onSongChange, onSelectChord, onEditForm }: Props) {
+export function ChordPanel({ song, settings, chordId, onSongChange, onSelectChord, onEditForm }: Props) {
   const [tab, setTab] = useState<"chord" | "section">("chord");
   const found = findChord(song, chordId);
   const m = ticksPerMeasure(song.timeSignature);
@@ -57,7 +61,7 @@ export function ChordPanel({ song, chordId, onSongChange, onSelectChord, onEditF
   const index = section.chords.findIndex((c) => c.id === chord.id);
 
   return (
-    <div className="edit-panel" role="region" aria-label="コードの編集">
+    <div className="edit-panel chord-panel" role="region" aria-label="コードの編集">
       <div className="tabs small-tabs" role="tablist" aria-label="編集する対象">
         <button
           type="button"
@@ -82,6 +86,7 @@ export function ChordPanel({ song, chordId, onSongChange, onSelectChord, onEditF
         <ChordEditor
           key={chord.id}
           song={song}
+          settings={settings}
           chordId={chord.id}
           label={`${section.name} の ${index + 1}番目`}
           onSongChange={onSongChange}
@@ -101,8 +106,30 @@ export function ChordPanel({ song, chordId, onSongChange, onSelectChord, onEditF
   );
 }
 
+const ROOTS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+const QUALITIES: [suffix: string, label: string][] = [
+  ["", "メジャー"],
+  ["m", "m"],
+  ["7", "7"],
+  ["maj7", "maj7"],
+  ["m7", "m7"],
+  ["sus4", "sus4"],
+  ["add9", "add9"],
+  ["6", "6"],
+  ["dim", "dim"],
+  ["aug", "aug"],
+  ["m7b5", "m7♭5"],
+];
+
+/** "F#m7/E" → { root: "F#", suffix: "m7", bass: "/E" } */
+function splitName(name: string) {
+  const m = /^([A-G][#♯b♭]?)([^/]*)(\/.*)?$/.exec(name.trim());
+  return m ? { root: m[1], suffix: m[2], bass: m[3] ?? "" } : { root: "C", suffix: "", bass: "" };
+}
+
 function ChordEditor({
   song,
+  settings,
   chordId,
   label,
   onSongChange,
@@ -110,6 +137,7 @@ function ChordEditor({
   onEditForm,
 }: {
   song: Song;
+  settings: DisplaySettings;
   chordId: string;
   label: string;
   onSongChange: (song: Song) => void;
@@ -119,14 +147,24 @@ function ChordEditor({
   const { chord, section } = findChord(song, chordId)!;
   const ts = song.timeSignature;
   const m = ticksPerMeasure(ts);
-  // コード名は入力中には反映しない（途中の名前で保存フォームが外れないように）。確定で反映する。
+  // 入力欄のコード名は打ち終わったら反映（途中の名前で保存フォームが外れないように）。
+  // 一覧のボタンで変えたときは入力欄も追従させる。
   const [name, setName] = useState(chord.chordName);
+  const [shown, setShown] = useState(chord.chordName);
+  if (shown !== chord.chordName) {
+    setShown(chord.chordName);
+    setName(chord.chordName);
+  }
   const valid = !!parseChord(name.trim());
+  const rename = (n: string) => {
+    if (n && n !== chord.chordName) onSongChange(pruneForms(renameChord(song, chord.id, n)));
+  };
   const commitName = () => {
     const n = name.trim();
-    if (n && n !== chord.chordName) onSongChange(pruneForms(renameChord(song, chord.id, n)));
+    if (n && n !== chord.chordName) rename(n);
     else setName(chord.chordName);
   };
+  const parts = splitName(chord.chordName);
   const resolved = resolveForm(song, chord);
   const beats = ticksToBeats(chord.durationTicks, ts);
   const add = (position: "before" | "after") => {
@@ -136,14 +174,13 @@ function ChordEditor({
   };
 
   return (
-    <div className="chord-editor">
-      <div className="btn-row">
-        <span className="muted small">{label}</span>
-        <label className="inline-field field" style={{ margin: 0 }}>
-          <span>コード名</span>
+    <div className="chord-editor-grid">
+      <div className="ce-controls">
+        <div className="btn-row">
+          <span className="muted small">{label}</span>
           <input
             type="text"
-            className={`chord-name-input${valid ? "" : " invalid"}`}
+            className={`chord-name-input big${valid ? "" : " invalid"}`}
             aria-label="コード名"
             aria-invalid={!valid}
             value={name}
@@ -159,104 +196,158 @@ function ChordEditor({
               <option key={n} value={n} />
             ))}
           </datalist>
-        </label>
-        <label className="beats">
-          <input
-            type="number"
-            aria-label="長さ（拍）"
-            min={0.25}
-            step={0.5}
-            value={beats}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              if (v > 0) onSongChange(setChordDuration(song, chord.id, beatsToTicks(v, ts)));
-            }}
-          />
-          拍
-        </label>
-        {(
-          [
-            ["½小節", m / 2],
-            ["1小節", m],
-            ["2小節", m * 2],
-          ] as const
-        ).map(([text, t]) => (
-          <button
-            key={text}
-            type="button"
-            className={`chip${chord.durationTicks === t ? " on" : ""}`}
-            disabled={!Number.isInteger(t)}
-            onClick={() => onSongChange(setChordDuration(song, chord.id, t))}
-          >
-            {text}
+          {!valid && <span className="warn small">解析できません（例: C, Am, G7, F#m, Bb, C/G）</span>}
+        </div>
+
+        <div className="ce-palette" role="group" aria-label="ルート">
+          {ROOTS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              className={`chip${parts.root === r ? " on" : ""}`}
+              aria-pressed={parts.root === r}
+              onClick={() => rename(r + parts.suffix + parts.bass)}
+            >
+              {r.replace("#", "♯").replace("b", "♭")}
+            </button>
+          ))}
+        </div>
+        <div className="ce-palette" role="group" aria-label="種類">
+          {QUALITIES.map(([suffix, text]) => (
+            <button
+              key={text}
+              type="button"
+              className={`chip${parts.suffix === suffix ? " on" : ""}`}
+              aria-pressed={parts.suffix === suffix}
+              onClick={() => rename(parts.root + suffix + parts.bass)}
+            >
+              {text}
+            </button>
+          ))}
+        </div>
+
+        <div className="btn-row">
+          <span className="small">長さ</span>
+          <label className="beats">
+            <input
+              type="number"
+              aria-label="長さ（拍）"
+              min={0.25}
+              step={0.5}
+              value={beats}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                if (v > 0) onSongChange(setChordDuration(song, chord.id, beatsToTicks(v, ts)));
+              }}
+            />
+            拍
+          </label>
+          {(
+            [
+              ["½小節", m / 2],
+              ["1小節", m],
+              ["2小節", m * 2],
+            ] as const
+          ).map(([text, t]) => (
+            <button
+              key={text}
+              type="button"
+              className={`chip${chord.durationTicks === t ? " on" : ""}`}
+              disabled={!Number.isInteger(t)}
+              onClick={() => onSongChange(setChordDuration(song, chord.id, t))}
+            >
+              {text}
+            </button>
+          ))}
+        </div>
+
+        <div className="btn-row">
+          <button type="button" className="small-btn" onClick={() => add("before")}>
+            ＋ 前に追加
           </button>
-        ))}
-      </div>
-      {!valid && <p className="warn small">コード名を解析できません（例: C, Am, G7, Cmaj7, F#m, Bb, C/G）</p>}
-
-      <div className="btn-row">
-        <button type="button" className="small-btn" onClick={() => add("before")}>
-          ＋ 前に追加
-        </button>
-        <button type="button" className="small-btn" onClick={() => add("after")}>
-          ＋ 後ろに追加
-        </button>
-        <button
-          type="button"
-          className="small-btn"
-          disabled={chord.durationTicks < 6}
-          onClick={() => {
-            // 16分（3 tick）単位で半分に分ける
-            const half = Math.round(chord.durationTicks / 2 / 3) * 3;
-            const r = splitChord(song, chord.id, half);
-            if (r) onSongChange(r.song);
-          }}
-        >
-          半分に分ける
-        </button>
-        <button
-          type="button"
-          className="small-btn danger"
-          disabled={section.chords.length === 1}
-          title={
-            section.chords.length === 1 ? "セクションの最後の1つは削除できません（セクションごと削除してください）" : ""
-          }
-          onClick={() => {
-            const i = section.chords.findIndex((c) => c.id === chord.id);
-            const neighbor = section.chords[i + 1] ?? section.chords[i - 1];
-            onSongChange(deleteChord(song, chord.id));
-            if (neighbor) onSelectChord(neighbor.id);
-          }}
-        >
-          削除
-        </button>
-      </div>
-
-      <div className="btn-row">
-        <label className="field inline-field" style={{ margin: 0 }}>
-          <span>リズム</span>
-          <select
-            aria-label="このコードのリズム"
-            value={chord.rhythmPatternId ?? ""}
-            onChange={(e) =>
-              onSongChange(updateChord(song, chord.id, (c) => ({ ...c, rhythmPatternId: e.target.value || undefined })))
-            }
+          <button type="button" className="small-btn" onClick={() => add("after")}>
+            ＋ 後ろに追加
+          </button>
+          <button
+            type="button"
+            className="small-btn"
+            disabled={chord.durationTicks < 6}
+            onClick={() => {
+              // 16分（3 tick）単位で半分に分ける
+              const half = Math.round(chord.durationTicks / 2 / 3) * 3;
+              const r = splitChord(song, chord.id, half);
+              if (r) onSongChange(r.song);
+            }}
           >
-            <option value="">セクションに従う</option>
-            {song.rhythmPatterns.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="small">
-          フォーム <span className="badge mono">{resolved.form ? formShorthand(resolved.form.positions) : "なし"}</span>{" "}
-          <span className="muted">{resolved.source === "saved" ? "（保存フォーム）" : "（自動生成）"}</span>
-        </span>
-        <button type="button" className="small-btn" onClick={onEditForm}>
-          フォームを編集
-        </button>
+            半分に分ける
+          </button>
+          <button
+            type="button"
+            className="small-btn danger"
+            disabled={section.chords.length === 1}
+            title={
+              section.chords.length === 1
+                ? "セクションの最後の1つは削除できません（セクションごと削除してください）"
+                : ""
+            }
+            onClick={() => {
+              const i = section.chords.findIndex((c) => c.id === chord.id);
+              const neighbor = section.chords[i + 1] ?? section.chords[i - 1];
+              onSongChange(deleteChord(song, chord.id));
+              if (neighbor) onSelectChord(neighbor.id);
+            }}
+          >
+            削除
+          </button>
+        </div>
+
+        <div className="btn-row">
+          <label className="field inline-field" style={{ margin: 0 }}>
+            <span>リズム</span>
+            <select
+              aria-label="このコードのリズム"
+              value={chord.rhythmPatternId ?? ""}
+              onChange={(e) =>
+                onSongChange(
+                  updateChord(song, chord.id, (c) => ({ ...c, rhythmPatternId: e.target.value || undefined })),
+                )
+              }
+            >
+              <option value="">セクションに従う</option>
+              {song.rhythmPatterns.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div className="ce-preview">
+        <div className="ce-preview-head">
+          <span className="ce-preview-name">{chord.chordName}</span>
+          <span className="badge mono">{resolved.form ? formShorthand(resolved.form.positions) : "フォームなし"}</span>
+          <span className="muted small">{resolved.source === "saved" ? "保存フォーム" : "自動生成"}</span>
+          <button type="button" className="small-btn" onClick={onEditForm}>
+            フォームを編集
+          </button>
+        </div>
+        {resolved.analysis && <FormAnalysisView analysis={resolved.analysis} labelMode={settings.tabLabelMode} />}
+        {resolved.form && (
+          <TabView
+            positions={resolved.form.positions}
+            labelMode={settings.tabLabelMode}
+            rootPc={resolved.analysis?.chord?.root ?? null}
+          />
+        )}
+        {resolved.form && settings.showPiano && (
+          <PianoView
+            notes={soundingNotes(resolved.form.positions)}
+            labelMode={settings.pianoLabelMode}
+            rootPc={resolved.analysis?.chord?.root ?? null}
+          />
+        )}
       </div>
     </div>
   );

@@ -445,6 +445,7 @@ export function PlayScreen({
       {editMode === "chord" && settings.playView === "score" && (
         <ChordPanel
           song={song}
+          settings={settings}
           chordId={current?.chord.id}
           onSongChange={commit}
           onSelectChord={onSelectChord}

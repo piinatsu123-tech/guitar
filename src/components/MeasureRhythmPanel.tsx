@@ -2,11 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { player } from "../audio/player";
 import { buildRangeSchedule } from "../audio/schedule";
 import { effectiveMeasureEvents, songMeasures } from "../music/arrangement";
-import { soundingNotes, type SoundingNote } from "../music/chord";
 import { fitToLength, splitIntoMeasures } from "../music/measureRhythm";
 import { EIGHTH, SIXTEENTH, ticksPerMeasure } from "../music/timeline";
 import { newId } from "../model/factory";
-import { resolveForm, setMeasureRhythm } from "../model/songOps";
+import { setMeasureRhythm } from "../model/songOps";
 import type { RhythmEvent, Song } from "../model/types";
 import { TapRecorder } from "../screens/edit/TapRecorder";
 import { StepEditor } from "./StepEditor";
@@ -83,16 +82,6 @@ export function MeasureRhythmPanel({ song, from, to, onSongChange, clip, onCopy,
     commit(next);
   };
 
-  // タップしたときに鳴らす音：その位置のコード
-  const notesAt = (tick: number): SoundingNote[] => {
-    const x = measures[Math.min(n - 1, Math.floor(tick / m))];
-    if (!x) return [];
-    const inMeasure = tick % m;
-    const slot = x.row.slots.find((s) => inMeasure >= s.start && inMeasure < s.start + s.length) ?? x.row.slots[0];
-    const form = slot ? resolveForm(song, slot.chord).form : null;
-    return form ? soundingNotes(form.positions) : [];
-  };
-
   const togglePreview = async () => {
     if (player.playing) {
       player.stop();
@@ -164,13 +153,11 @@ export function MeasureRhythmPanel({ song, from, to, onSongChange, clip, onCopy,
           current={{ events: current, lengthTicks }}
           tempo={song.tempo}
           timeSignature={song.timeSignature}
-          notes={notesAt(0)}
-          notesAt={notesAt}
           measureTicks={m}
           fixedLengthTicks={lengthTicks}
           onUndo={onUndo}
           onApply={(events, _len, gridTicks) => {
-            if (gridTicks && gridTicks < stepTicks) setStepTicks(gridTicks);
+            if (gridTicks) setStepTicks(gridTicks);
             apply(events);
           }}
         />
