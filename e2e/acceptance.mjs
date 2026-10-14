@@ -424,6 +424,46 @@ await check("タップ入力: 裏拍は自動でアップ（↓ ↓↑ ・↑ �
   assert.deepEqual(cells, ["♪↓", "～", "♪↓", "♪↑", "～", "♪↑", "♪↓", "♪↑"]);
   await page.getByRole("button", { name: "元に戻す" }).click();
   assert.deepEqual((await steps.locator(".step-action").allTextContents()).filter(Boolean), ["↓", "↓", "↓", "↓"]);
+});
+
+await check("タップ入力: 2小節まとめて採譜（1小節目 4分×4、2小節目 全音符）", async () => {
+  await page.getByLabel("録音する長さ").selectOption("2");
+  await page.getByRole("button", { name: "● 録音" }).click();
+  const q = 60 / 96;
+  await tapAlong([0, q, 2 * q, 3 * q, 4 * q]);
+  await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 9000 });
+  const steps = page.locator(".step");
+  assert.equal(await steps.count(), 16);
+  const cells = [];
+  for (let i = 0; i < 16; i++) {
+    cells.push(
+      (await steps.nth(i).locator(".step-state").textContent()) +
+        (await steps.nth(i).locator(".step-action").textContent()),
+    );
+  }
+  assert.deepEqual(cells, [
+    "♪↓",
+    "～",
+    "♪↓",
+    "～",
+    "♪↓",
+    "～",
+    "♪↓",
+    "～",
+    "♪↓",
+    "～",
+    "～",
+    "～",
+    "～",
+    "～",
+    "～",
+    "～",
+  ]);
+  // 1小節ごとに折り返して表示（2行目の先頭は1行目の先頭の真下）
+  const [a, b] = [await steps.nth(0).boundingBox(), await steps.nth(8).boundingBox()];
+  assert.ok(Math.abs(a.x - b.x) < 2 && b.y > a.y, JSON.stringify([a, b]));
+  assert.equal(await page.locator(".pattern-editor .timeline .tl-measure").count(), 2);
+  assert.equal(await page.locator(".pattern-editor .form-grid select").first().inputValue(), "96");
   await page.getByRole("button", { name: "破棄" }).click();
   await page.getByRole("button", { name: "‹ 演奏画面" }).click();
 });

@@ -102,7 +102,7 @@ export function buildSongSchedule(song: Song, startIndex: number, opts: { metron
     const abs = (rel: number) => toTime(p.absStart + rel);
     chordStarts.push({ time: toTime(p.absStart), chordId: p.chord.id });
     if (pattern) {
-      events.push(...eventsForRhythm(tilePattern(pattern, p.absStart, p.chord.durationTicks), notes, abs));
+      events.push(...eventsForRhythm(tilePattern(pattern, p.sectionStart, p.chord.durationTicks), notes, abs));
     } else if (notes.length) {
       events.push({ kind: "strum", time: abs(0), direction: "down", notes });
     }

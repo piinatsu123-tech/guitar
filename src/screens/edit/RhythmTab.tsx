@@ -238,7 +238,7 @@ function PatternEditor({
   }
 
   const cur = steps[Math.min(cursor, steps.length - 1)];
-  const lengthOptions = [beat * 2, m / 2, m, m * 2].filter(
+  const lengthOptions = [beat * 2, m / 2, m, m * 2, m * 4, m * 8].filter(
     (t, i, a) => Number.isInteger(t) && t > 0 && a.indexOf(t) === i,
   );
 
@@ -298,7 +298,8 @@ function PatternEditor({
         className="step-grid"
         role="grid"
         aria-label="リズムのステップ"
-        style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(26px, 1fr))` }}
+        // 1小節ごとに折り返す
+        style={{ gridTemplateColumns: `repeat(${Math.min(steps.length, m / stepTicks)}, minmax(26px, 1fr))` }}
       >
         {steps.map((s, i) => {
           const tick = (i * stepTicks) % m;
@@ -313,6 +314,11 @@ function PatternEditor({
               aria-selected={i === cursor}
               aria-label={`${label || "·"} ${s.state === "note" ? "音符" : s.state === "rest" ? "休符" : "伸ばす"} ${s.state === "note" ? ACTION_LABEL[s.action] : ""}`}
             >
+              {tick === 0 && pattern.lengthTicks > m && (
+                <span className="step-bar" aria-hidden>
+                  {(i * stepTicks) / m + 1}
+                </span>
+              )}
               <span className="step-state">{s.state === "note" ? "♪" : s.state === "rest" ? "休" : "～"}</span>
               <span className="step-action">{s.state === "note" ? ACTION_SYMBOL[s.action] : ""}</span>
               <span className="step-label">{label || "·"}</span>
@@ -387,7 +393,8 @@ function PatternEditor({
         timeSignature={ts}
         gridTicks={stepTicks}
         notes={previewNotes()}
-        onApply={(events) => onChange({ ...pattern, events })}
+        measureTicks={m}
+        onApply={(events, lengthTicks) => onChange({ ...pattern, events, lengthTicks })}
       />
 
       <h3 className="block-title">プレビュー</h3>

@@ -166,9 +166,10 @@ export type PlacedRhythmEvent = RhythmEvent & {
 };
 
 /**
- * パターンを絶対位置 absStart から length の範囲に敷き詰める。
- * パターンの位相は曲頭（= 小節頭）基準なので、拍の途中から始まるコードでも拍との対応は崩れない。
- * 返す startTick は範囲の先頭（absStart）からの相対位置。
+ * パターンを位置 start から length の範囲に敷き詰める。
+ * start はセクションの頭からの位置を渡す（パターンの1小節目がセクションの1小節目にそろう）。
+ * 拍の途中から始まるコードでも、拍・小節との対応は崩れない。
+ * 返す startTick は範囲の先頭（start）からの相対位置。
  */
 export function tilePattern(pattern: RhythmPattern, absStart: number, length: number): PlacedRhythmEvent[] {
   const L = pattern.lengthTicks;

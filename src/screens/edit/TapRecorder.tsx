@@ -14,7 +14,9 @@ type Props = {
   gridTicks: number;
   /** タップしたときに鳴らすコードの音 */
   notes: SoundingNote[];
-  onApply: (events: RhythmEvent[]) => void;
+  measureTicks: number;
+  /** 録音した長さ（小節数×小節長）でパターンを置き換える */
+  onApply: (events: RhythmEvent[], lengthTicks: number) => void;
 };
 
 type Phase = "idle" | "countin" | "recording";
@@ -27,21 +29,31 @@ const SPEEDS = [
 
 /**
  * クリックに合わせてタップしたリズムを採譜する。
- * 1小節のカウントインのあと、パターンの長さだけ録音し、グリッドに寄せてパターンに反映する。
+ * 1小節のカウントインのあと、選んだ小節数だけ続けて録音し、グリッドに寄せてパターン（長さも）を置き換える。
  */
-export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, onApply }: Props) {
+const BAR_CHOICES = [1, 2, 4, 8];
+
+export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, measureTicks, onApply }: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [speed, setSpeed] = useState<number>(1);
   const [progress, setProgress] = useState(0);
   const [countdown, setCountdown] = useState(0);
   const [tapCount, setTapCount] = useState(0);
   const [result, setResult] = useState<Transcription | null>(null);
-  const [undo, setUndo] = useState<RhythmEvent[] | null>(null);
+  const [undo, setUndo] = useState<{ events: RhythmEvent[]; lengthTicks: number } | null>(null);
+  // 何小節まとめて録音するか（初期値は今のパターンの長さ）
+  const [bars, setBars] = useState(() => {
+    const n = Math.round(pattern.lengthTicks / measureTicks);
+    return BAR_CHOICES.includes(n) ? n : 1;
+  });
+  const recordTicks = bars * measureTicks;
   const session = useRef<{ recordStart: number; taps: Tap[]; cancelled: boolean } | null>(null);
 
   const recTempo = Math.round(tempo * speed);
   const spt = secondsPerTick(recTempo);
-  const recordSeconds = pattern.lengthTicks * spt;
+  const recordSeconds = recordTicks * spt;
+  const barSeconds = measureTicks * spt;
+  const [currentBar, setCurrentBar] = useState(1);
   const beatSeconds = (60 / recTempo) * (4 / timeSignature.denominator);
 
   const tap = (action?: GuitarAction) => {
@@ -68,13 +80,14 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, o
         } else {
           if (phase === "countin") setPhase("recording");
           setProgress(Math.min(1, t / recordSeconds));
+          setCurrentBar(Math.min(bars, Math.floor(t / barSeconds) + 1));
         }
       }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [phase, beatSeconds, recordSeconds]);
+  }, [phase, beatSeconds, recordSeconds, barSeconds, bars]);
 
   // キーボード：スペース＝自動、↓／↑＝向きを指定
   useEffect(() => {
@@ -98,7 +111,8 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, o
     setResult(null);
     setTapCount(0);
     setProgress(0);
-    const track = buildClickTrack(recTempo, timeSignature, timeSignature.numerator, pattern.lengthTicks);
+    const track = buildClickTrack(recTempo, timeSignature, timeSignature.numerator, recordTicks);
+    setCurrentBar(1);
     session.current = { recordStart: Infinity, taps: [], cancelled: false };
     setCountdown(timeSignature.numerator);
     setPhase("countin");
@@ -108,10 +122,13 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, o
         session.current = null;
         setPhase("idle");
         if (!s || s.cancelled) return;
-        const r = transcribeTaps(s.taps, { secondsPerTick: spt, lengthTicks: pattern.lengthTicks, gridTicks });
+        const r = transcribeTaps(s.taps, { secondsPerTick: spt, lengthTicks: recordTicks, gridTicks });
         setResult(r);
-        setUndo(pattern.events);
-        onApply(r.events.map((e) => ({ id: newId(), ...e })));
+        setUndo({ events: pattern.events, lengthTicks: pattern.lengthTicks });
+        onApply(
+          r.events.map((e) => ({ id: newId(), ...e })),
+          recordTicks,
+        );
       },
     });
     if (session.current) session.current.recordStart = t0 + track.recordOffset;
@@ -129,7 +146,8 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, o
     <div className="tap-recorder" aria-label="タップで入力">
       <h3 className="block-title">タップで入力（クリックに合わせてタップ）</h3>
       <p className="muted small">
-        「録音」を押すと {timeSignature.numerator} 拍のカウントインのあと、パターンの長さだけ録音します。
+        「録音」を押すと {timeSignature.numerator}{" "}
+        拍のカウントインのあと、選んだ小節数だけ続けて録音し、パターンをその長さで置き換えます。
         パッドをタップ（またはスペースキー）すると、表拍は ↓・裏拍は ↑ として、
         {gridTicks === EIGHTH ? "8分" : "16分"}音符の位置に合わせて採譜します。向きを指定したいときは ↓／↑
         のパッド（または矢印キー）を使います。
@@ -141,6 +159,16 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, o
             {SPEEDS.map(([v, label]) => (
               <option key={v} value={v}>
                 {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field inline-field" style={{ margin: 0 }}>
+          <span>録音する長さ</span>
+          <select value={bars} onChange={(e) => setBars(Number(e.target.value))} disabled={busy}>
+            {BAR_CHOICES.map((n) => (
+              <option key={n} value={n}>
+                {n}小節
               </option>
             ))}
           </select>
@@ -160,7 +188,7 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, o
             type="button"
             className="small-btn"
             onClick={() => {
-              onApply(undo);
+              onApply(undo.events, undo.lengthTicks);
               setUndo(null);
               setResult(null);
             }}
@@ -172,7 +200,11 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, o
 
       <div className={`tap-status ${phase}`} role="status" aria-live="polite">
         {phase === "countin" && <span className="tap-count">カウント {countdown}</span>}
-        {phase === "recording" && <span className="tap-count">録音中… タップ {tapCount}回</span>}
+        {phase === "recording" && (
+          <span className="tap-count">
+            録音中 {currentBar}/{bars}小節… タップ {tapCount}回
+          </span>
+        )}
         {phase === "idle" && result && (
           <span>
             {notesCount}個の音符を入力しました。{describeTiming(result.deviationsMs)}

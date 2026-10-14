@@ -54,9 +54,11 @@ export function sectionMeasureRows(song: Song, section: Section): MeasureRow[] {
       slots: slots.map((slot) => {
         const chord = chordById.get(slot.chordId)!;
         const pattern = resolveRhythmPattern(song, section, chord);
-        const slotAbs = sectionAbs + measureStart + slot.start;
         const rhythm = pattern
-          ? tilePattern(pattern, slotAbs, slot.length).map((e) => ({ ...e, startTick: e.startTick + slot.start }))
+          ? tilePattern(pattern, measureStart + slot.start, slot.length).map((e) => ({
+              ...e,
+              startTick: e.startTick + slot.start,
+            }))
           : [];
         const offsetInChord = measureStart + slot.start - chordStart.get(chord.id)!;
         const lyrics = chord.lyrics
