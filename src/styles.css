@@ -2117,3 +2117,70 @@ input.narrow {
 .sheet-cell.accent {
   position: relative;
 }
+
+/* ---------- 小節ごとのかたまり（歌詞の下にその小節のリズム） ---------- */
+
+.sheet-line.multi-bar,
+.sheet-line.with-rhythm {
+  align-items: stretch;
+  row-gap: 10px;
+}
+.sheet-bar {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+}
+.sheet-bar-lyrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  flex: 1 1 auto;
+}
+.sheet-line.multi-bar .sheet-bar,
+.sheet-line.with-rhythm .sheet-bar {
+  border-left: 2px solid var(--muted);
+  padding: 0 8px 0 6px;
+}
+.sheet-line.with-rhythm .sheet-bar {
+  min-width: 250px;
+}
+.sheet-bar.playing {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-radius: 4px;
+}
+.sheet-bar .sheet-cell.bar-start {
+  margin-left: 0;
+}
+.sheet-bar .sheet-cell.bar-start::before {
+  display: none;
+}
+.timeline.bar-rhythm {
+  padding-left: 0;
+  margin-top: 4px;
+}
+.timeline.bar-rhythm .tl-measure-num {
+  display: none;
+}
+.timeline.bar-rhythm .tl-measure {
+  border-left: 0;
+}
+.timeline.bar-rhythm .tl-measure.empty {
+  min-height: 72px;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 8px,
+    color-mix(in srgb, var(--muted) 12%, transparent) 8px 9px
+  );
+}
+/* リズム譜を小節に並べたので、行の下の枠は操作ボタンだけ */
+.sheet-line-block .section-rhythm {
+  background: transparent;
+  border-left: 0;
+  padding: 0 0 0 4px;
+}
+.song-header .header-actions {
+  flex-wrap: wrap;
+}
+.song-header .header-actions > * {
+  white-space: nowrap;
+}

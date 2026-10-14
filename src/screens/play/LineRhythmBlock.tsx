@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { player } from "../../audio/player";
 import { buildRhythmSchedule } from "../../audio/schedule";
-import { RhythmStaff } from "../../components/RhythmStaff";
 import { StepEditor } from "../../components/StepEditor";
 import { EIGHTH, ticksPerMeasure } from "../../music/timeline";
 import { addPatternFromRhythm, patternToRhythm, setLineRhythm } from "../../model/songOps";
@@ -16,8 +15,8 @@ type Props = {
   line: number;
   /** 歌詞のこの行の小節数（区切り＋1）。リズム譜の小節数の目安 */
   bars: number;
-  /** 通し再生中、この行の何小節目か（再生していなければ null） */
-  playingBar?: number | null;
+  /** この行だけを鳴らしているとき、今の小節（0始まり、止まったら null）を知らせる */
+  onPlayingBar?: (bar: number | null) => void;
   editing: boolean;
   onSongChange: (song: Song) => void;
 };
@@ -26,13 +25,17 @@ type Props = {
  * 歌詞の行のリズム譜（行の下に置く）。コードとは切り離して、リズムだけを採譜・表示・再生する。
  * 再生は音程のない打撃音で、頭から1回通す（くり返さない）。
  */
-export function LineRhythmBlock({ song, section, line, bars, playingBar = null, editing, onSongChange }: Props) {
+export function LineRhythmBlock({ song, section, line, bars, onPlayingBar, editing, onSongChange }: Props) {
   const ts = song.timeSignature;
   const m = ticksPerMeasure(ts);
   const rhythm = section.lineRhythms?.find((r) => r.line === line);
   const [open, setOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [bar, setBar] = useState<number | null>(null);
+  // 親へは小節が変わったときだけ知らせる（関数は毎回作り直されるので依存に入れない）
+  const notify = useRef(onPlayingBar);
+  notify.current = onPlayingBar;
+  useEffect(() => notify.current?.(bar), [bar]);
   const [metronome, setMetronome] = useState(false);
   const [stepTicks, setStepTicks] = useState(EIGHTH);
   const patterns = song.rhythmPatterns.length ? song.rhythmPatterns : defaultPatterns();
@@ -121,7 +124,6 @@ export function LineRhythmBlock({ song, section, line, bars, playingBar = null, 
           </button>
         )}
       </div>
-      {rhythm && <RhythmStaff rhythm={rhythm} timeSignature={ts} playingBar={bar ?? playingBar} />}
       {editing && rhythm && Math.round(rhythm.lengthTicks / m) !== bars && (
         <p className="muted small">
           歌詞は{bars}小節、リズム譜は{Math.round(rhythm.lengthTicks / m)}

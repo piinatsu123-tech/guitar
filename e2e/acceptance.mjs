@@ -54,12 +54,15 @@ async function tapAlong(offsetsSec, keys, waitText = "録音中") {
       new Promise((resolve) => {
         const status = document.querySelector(".tap-status");
         const go = () => {
+          const base = performance.now();
           offsetsSec.forEach((t, i) =>
-            setTimeout(
-              // 実際のキー入力と同じく、ページ（body）から window へ伝わるイベントにする
-              () => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: keys?.[i] ?? " ", bubbles: true })),
-              t * 1000,
-            ),
+            setTimeout(() => {
+              // 実際のキー入力と同じく、ページ（body）から window へ伝わるイベントにする。
+              // タイマーが混雑で遅れても、押した時刻（timeStamp）は予定の時刻にする（本物の入力と同じ扱い）
+              const ev = new KeyboardEvent("keydown", { key: keys?.[i] ?? " ", bubbles: true });
+              Object.defineProperty(ev, "timeStamp", { value: base + t * 1000 });
+              document.body.dispatchEvent(ev);
+            }, t * 1000),
           );
           setTimeout(resolve, offsetsSec[offsetsSec.length - 1] * 1000 + 50);
         };
@@ -88,6 +91,9 @@ async function typeLikeHuman(locator, text) {
 const startEdit = () => page.getByRole("button", { name: "✎ 編集" }).click();
 const endEdit = () => page.getByRole("button", { name: "✓ 編集を終える" }).click();
 const section = (name) => page.locator(`.lyric-sheet section[aria-label="${name}"]`);
+/** 歌詞の行の小節ごとに並ぶリズム譜の小節 */
+const lineMeasures = (name, line = 0) =>
+  section(name).locator(".sheet-line").nth(line).locator(".bar-rhythm .tl-measure:not(.empty)");
 /** コードのかたまり（コード名:そのコードの歌詞） */
 const segs = async (name) => {
   const out = [];
@@ -176,9 +182,9 @@ await check("表示: リズム譜をオフにすると行の下のリズム譜�
   assert.equal(await page.getByRole("region", { name: "Aメロ 1行目のリズム" }).count(), 1);
   await page.getByRole("button", { name: "表示" }).click();
   await page.getByLabel("リズム譜", { exact: true }).uncheck();
-  assert.equal(await page.locator(".rhythm-staff").count(), 0);
+  assert.equal(await page.locator(".bar-rhythm").count(), 0);
   await page.reload();
-  assert.equal(await page.locator(".rhythm-staff").count(), 0);
+  assert.equal(await page.locator(".bar-rhythm").count(), 0);
   await startEdit();
   assert.equal(await page.getByRole("region", { name: "Aメロ 1行目のリズム" }).count(), 1);
   await endEdit();
@@ -201,10 +207,10 @@ await check("表示: コード図をオフにすると名前だけ。再読み�
   await page.getByRole("button", { name: "表示" }).click();
 });
 
-await check("リズム譜: 行の下に表示され、▶ で頭から1回だけ鳴って止まる（くり返さない）", async () => {
+await check("リズム譜: 小節の歌詞の下に表示され、▶ で頭から1回だけ鳴って止まる（くり返さない）", async () => {
   const r = page.getByRole("region", { name: "Aメロ 1行目のリズム" });
-  assert.ok((await r.locator(".rhythm-staff .tl-measure").count()) >= 1);
-  assert.ok((await r.locator(".tl-stroke").count()) >= 1);
+  assert.ok((await lineMeasures("Aメロ").count()) >= 1);
+  assert.ok((await section("Aメロ").locator(".sheet-line").first().locator(".bar-rhythm .tl-stroke").count()) >= 1);
   // 行の下に置く（1行目の歌詞の下、2行目の上）
   const [l1, l2] = [
     await section("Aメロ").locator(".sheet-line").nth(0).boundingBox(),
@@ -216,7 +222,7 @@ await check("リズム譜: 行の下に表示され、▶ で頭から1回だけ
   assert.equal(await page.getByRole("region", { name: "Aメロ 2行目のリズム" }).count(), 0);
   // リズム譜のないセクションには、見るだけのときは何も出ない
   assert.equal(await page.getByRole("region", { name: /^Bメロ .*のリズム$/ }).count(), 0);
-  const bars = await r.locator(".rhythm-staff .tl-measure").count();
+  const bars = await lineMeasures("Aメロ").count();
   await r.getByRole("button", { name: "▶ リズムを聴く" }).click();
   await r.getByRole("button", { name: "■ 停止" }).waitFor();
   // ♩=96 で1小節 2.5秒。終わったら自分で止まる
@@ -405,8 +411,8 @@ await check("リズム譜を採譜: クリックに合わせた4分のタップ 
   assert.deepEqual(await stepCells(8), ["♪↓", "～", "♪↓", "～", "♪↓", "～", "♪↓", "～"]);
   assert.match(await page.locator(".tap-status").textContent(), /4個の音符を8分の細かさで入力しました/);
   await endEdit();
-  const staff = rhythmOf("サビ").locator(".rhythm-staff");
-  assert.equal(await staff.locator(".tl-measure").count(), 1);
+  const staff = section("サビ").locator(".sheet-line").first().locator(".bar-rhythm");
+  assert.equal(await lineMeasures("サビ").count(), 1);
   assert.deepEqual(await staff.locator(".tl-stroke").allTextContents(), ["↓", "↓", "↓", "↓"]);
   // コードとは切り離されている（コードは変わらない）
   assert.deepEqual(await segs("サビ"), ["E5:ひかりのなかへ"]);
@@ -435,7 +441,7 @@ await check("リズム譜を採譜: 2小節まとめて（1小節目 4分×4、2
     ...["♪↓", "～", "♪↓", "～", "♪↓", "～", "♪↓", "～"],
     ...["♪↓", "～", "～", "～", "～", "～", "～", "～"],
   ]);
-  assert.equal(await rhythmOf("サビ").locator(".rhythm-staff .tl-measure").count(), 2);
+  assert.equal(await lineMeasures("サビ").count(), 2);
 });
 
 await check("リズム譜を採譜: マス目が16分でも 8分を叩けば ↓↑（8ビートとして判断）", async () => {
@@ -496,10 +502,10 @@ await check("リズム譜: マス目で直す・消す（消すとその行の�
   await page.locator(".section-rhythm-editor").getByRole("button", { name: "休符", exact: true }).click();
   assert.equal((await stepCells(2))[1], "休");
   await page.locator(".section-rhythm-editor").getByRole("button", { name: "リズム譜を消す" }).click();
-  assert.equal(await page.locator(".section-rhythm .rhythm-staff").count(), 0);
+  assert.equal(await lineMeasures("サビ").count(), 0);
   await undoAll();
   await endEdit();
-  assert.equal(await rhythmOf("サビ").locator(".rhythm-staff").count(), 1);
+  assert.equal(await lineMeasures("サビ").count(), 1);
 });
 
 await check("小節の区切り: 歌詞の文字の前で区切ると縦線が出て、リズム譜の小節数の目安になる", async () => {
@@ -513,9 +519,18 @@ await check("小節の区切り: 歌詞の文字の前で区切ると縦線が�
   assert.equal(await fill.getByLabel("入れる小節数").inputValue(), "2");
   await fill.getByLabel("パターン").selectOption({ index: 1 });
   await fill.getByRole("button", { name: "入れる" }).click();
-  assert.equal(await rhythmOf("Aメロ").locator(".rhythm-staff .tl-measure").count(), 2);
+  assert.equal(await lineMeasures("Aメロ").count(), 2);
   await panel().getByRole("button", { name: "閉じる" }).click();
   await endEdit();
+  // 2小節目のリズムは、2小節目の歌詞（「まど…」）の真下
+  const bar2 = section("Aメロ").locator(".sheet-line").first().locator(".sheet-bar").nth(1);
+  assert.match(await bar2.locator(".sheet-bar-lyrics").textContent(), /^G.*まどをたたく/);
+  assert.equal(await bar2.locator(".bar-rhythm .tl-measure:not(.empty)").count(), 1);
+  const [lyr, rhy] = [
+    await bar2.locator(".sheet-bar-lyrics").boundingBox(),
+    await bar2.locator(".bar-rhythm").boundingBox(),
+  ];
+  assert.ok(rhy.y >= lyr.y + lyr.height - 1 && Math.abs(rhy.x - lyr.x) < 20, JSON.stringify([lyr, rhy]));
   assert.equal(await section("Aメロ").locator(".sheet-cell.bar-start").count(), 1);
   await page.reload();
   assert.equal(await section("Aメロ").locator(".sheet-cell.bar-start").count(), 1);

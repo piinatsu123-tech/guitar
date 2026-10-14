@@ -21,6 +21,7 @@ import { chordNamesInSong, resolveForm, toggleLyricAccent } from "../../model/so
 import type { ChordEvent, DisplaySettings, Song } from "../../model/types";
 import { parseChord, soundingNotes, type SoundingNote } from "../../music/chord";
 import { LineRhythmBlock } from "./LineRhythmBlock";
+import { RhythmMeasure, rhythmMeasures } from "../../components/RhythmStaff";
 
 type Props = {
   song: Song;
@@ -47,9 +48,12 @@ export function LyricSheet({
   onSongChange,
   editing,
   startWithPaste = false,
-  playhead = null,
+  playhead: songHead = null,
   onOpenChord,
 }: Props) {
+  // 通し再生の位置、なければ1行だけ鳴らしているときの位置
+  const [lineHead, setLineHead] = useState<{ section: number; line: number; bar: number } | null>(null);
+  const playhead = songHead ?? lineHead;
   const sheet = useMemo(() => songToSheet(song), [song]);
   const chordById = useMemo(() => {
     const map = new Map<string, ChordEvent>();
@@ -204,93 +208,129 @@ export function LyricSheet({
               </div>
             );
           }
-          return (
-            <div key={li} className="sheet-line">
-              {segmentsOf(ln, editing).map((seg) => {
-                const marks = ln.marks.filter((mk) => mk.at === seg.at);
-                const shown = marks.filter((mk) => editing || mk.name !== NO_CHORD);
-                const isSel = (at: number) =>
-                  !!active && active.section === si && active.line === li && active.at === at;
-                const select = (at: number) => {
-                  setPos({ section: si, line: li, at, k: 0 });
-                  setTyped("");
-                };
-                return (
-                  <span key={seg.at} className={`sheet-seg${shown.length ? " has-chord" : ""}`}>
-                    <span className="sheet-marks" onClick={editing ? () => select(seg.at) : undefined}>
-                      {shown.map((mk, i) => {
-                        const inner = (
-                          <>
-                            <span className={`sheet-chord${mk.name === NO_CHORD ? " nc" : ""}`}>{mk.name}</span>
-                            {diagram(mk.chordId)}
-                          </>
-                        );
-                        // 見るときはコードをタップで拡大（押さえ方の変更もここから）
-                        return !editing && onOpenChord && mk.chordId && mk.name !== NO_CHORD ? (
-                          <button
-                            key={i}
-                            type="button"
-                            className="sheet-mark sheet-mark-btn"
-                            aria-label={`コード ${mk.name} を拡大`}
-                            onClick={() => onOpenChord(mk.chordId!)}
-                          >
-                            {inner}
-                          </button>
-                        ) : (
-                          <span key={i} className="sheet-mark">
-                            {inner}
+          const renderPiece = (seg: Piece) => {
+            const marks = seg.showMarks ? ln.marks.filter((mk) => mk.at === seg.at) : [];
+            const shown = marks.filter((mk) => editing || mk.name !== NO_CHORD);
+            const isSel = (at: number) => !!active && active.section === si && active.line === li && active.at === at;
+            const select = (at: number) => {
+              setPos({ section: si, line: li, at, k: 0 });
+              setTyped("");
+            };
+            return (
+              <span
+                key={`${seg.at}-${seg.cells[0] ?? "m"}`}
+                className={`sheet-seg${shown.length ? " has-chord" : ""}${seg.showMarks ? "" : " continued"}`}
+              >
+                <span className="sheet-marks" onClick={editing ? () => select(seg.at) : undefined}>
+                  {shown.map((mk, i) => {
+                    const inner = (
+                      <>
+                        <span className={`sheet-chord${mk.name === NO_CHORD ? " nc" : ""}`}>{mk.name}</span>
+                        {diagram(mk.chordId)}
+                      </>
+                    );
+                    // 見るときはコードをタップで拡大（押さえ方の変更もここから）
+                    return !editing && onOpenChord && mk.chordId && mk.name !== NO_CHORD ? (
+                      <button
+                        key={i}
+                        type="button"
+                        className="sheet-mark sheet-mark-btn"
+                        aria-label={`コード ${mk.name} を拡大`}
+                        onClick={() => onOpenChord(mk.chordId!)}
+                      >
+                        {inner}
+                      </button>
+                    ) : (
+                      <span key={i} className="sheet-mark">
+                        {inner}
+                      </span>
+                    );
+                  })}
+                </span>
+                <span className="sheet-text">
+                  {seg.cells.map((at) => {
+                    const ch = at < ln.chars.length ? ln.chars[at] : null;
+                    const barStart = !!ln.bars?.includes(at);
+                    const barIndex = (ln.bars ?? []).filter((b) => b <= at).length;
+                    const playingHere =
+                      !!playhead && playhead.section === si && playhead.line === li && playhead.bar === barIndex;
+                    const cls = `sheet-cell${ch === null ? " end" : ""}${isSel(at) ? " selected" : ""}${barStart ? " bar-start" : ""}${playingHere ? " playing-bar" : ""}`;
+                    if (!editing) {
+                      // 見るときは文字をタップで「ここで弾く」アクセントを付け外し
+                      const ref = ch !== null ? ln.refs?.[at] : undefined;
+                      if (!ref)
+                        return (
+                          <span key={at} className={cls}>
+                            <span className="sheet-char">{ch ?? ""}</span>
                           </span>
                         );
-                      })}
-                    </span>
-                    <span className="sheet-text">
-                      {seg.cells.map((at) => {
-                        const ch = at < ln.chars.length ? ln.chars[at] : null;
-                        const barStart = !!ln.bars?.includes(at);
-                        const barIndex = (ln.bars ?? []).filter((b) => b <= at).length;
-                        const playingHere =
-                          !!playhead && playhead.section === si && playhead.line === li && playhead.bar === barIndex;
-                        const cls = `sheet-cell${ch === null ? " end" : ""}${isSel(at) ? " selected" : ""}${barStart ? " bar-start" : ""}${playingHere ? " playing-bar" : ""}`;
-                        if (!editing) {
-                          // 見るときは文字をタップで「ここで弾く」アクセントを付け外し
-                          const ref = ch !== null ? ln.refs?.[at] : undefined;
-                          if (!ref)
-                            return (
-                              <span key={at} className={cls}>
-                                <span className="sheet-char">{ch ?? ""}</span>
-                              </span>
-                            );
-                          return (
-                            <button
-                              key={at}
-                              type="button"
-                              className={`${cls}${ref.accent ? " accent" : ""}`}
-                              aria-pressed={ref.accent}
-                              aria-label={`「${ch}」${ref.accent ? "ここで弾く印あり" : ""}`}
-                              onClick={() => onSongChange(toggleLyricAccent(song, ref.chordId, ref.lyricId))}
-                            >
-                              <span className="sheet-char">{ch}</span>
-                            </button>
-                          );
-                        }
-                        const names = ln.marks.filter((mk) => mk.at === at).map((mk) => mk.name);
-                        return (
-                          <button
-                            key={at}
-                            type="button"
-                            className={cls}
-                            onClick={() => select(at)}
-                            aria-label={`${ch === null ? "行末" : `「${ch}」`}${names.length ? `（${names.join("・")}）` : ""}`}
-                            aria-pressed={isSel(at)}
-                          >
-                            <span className="sheet-char">{ch === null ? "＋" : ch}</span>
-                          </button>
-                        );
-                      })}
-                    </span>
-                  </span>
-                );
-              })}
+                      return (
+                        <button
+                          key={at}
+                          type="button"
+                          className={`${cls}${ref.accent ? " accent" : ""}`}
+                          aria-pressed={ref.accent}
+                          aria-label={`「${ch}」${ref.accent ? "ここで弾く印あり" : ""}`}
+                          onClick={() => onSongChange(toggleLyricAccent(song, ref.chordId, ref.lyricId))}
+                        >
+                          <span className="sheet-char">{ch}</span>
+                        </button>
+                      );
+                    }
+                    const names = ln.marks.filter((mk) => mk.at === at).map((mk) => mk.name);
+                    return (
+                      <button
+                        key={at}
+                        type="button"
+                        className={cls}
+                        onClick={() => select(at)}
+                        aria-label={`${ch === null ? "行末" : `「${ch}」`}${names.length ? `（${names.join("・")}）` : ""}`}
+                        aria-pressed={isSel(at)}
+                      >
+                        <span className="sheet-char">{ch === null ? "＋" : ch}</span>
+                      </button>
+                    );
+                  })}
+                </span>
+              </span>
+            );
+          };
+          // 小節ごとのかたまり：その小節のコード・歌詞の真下に、リズム譜の同じ小節を置く（コードとは連動しない）
+          const bars = barPieces(ln, editing);
+          const rhythm = sec?.lineRhythms?.find((r) => r.line === li);
+          const showStaff = !!rhythm && (editing || settings.showRhythm);
+          const measures = showStaff ? rhythmMeasures(rhythm!, song.timeSignature) : [];
+          const blocks = Math.max(bars.length, measures.length);
+          const playingLine = !!playhead && playhead.section === si && playhead.line === li;
+          return (
+            <div
+              key={li}
+              className={`sheet-line${showStaff ? " with-rhythm" : ""}${bars.length > 1 ? " multi-bar" : ""}`}
+            >
+              {Array.from({ length: blocks }, (_, k) => (
+                <div
+                  key={k}
+                  className={`sheet-bar${playingLine && playhead!.bar === k ? " playing" : ""}`}
+                  aria-label={`${k + 1}小節目`}
+                >
+                  <div className="sheet-bar-lyrics">{(bars[k] ?? []).map(renderPiece)}</div>
+                  {showStaff &&
+                    (measures[k] ? (
+                      <div className="timeline tl-detail bar-rhythm">
+                        <RhythmMeasure
+                          events={measures[k]}
+                          timeSignature={song.timeSignature}
+                          number={k + 1}
+                          playing={playingLine && playhead!.bar === k}
+                        />
+                      </div>
+                    ) : (
+                      <div className="timeline tl-detail bar-rhythm" aria-hidden>
+                        <div className="tl-measure empty" />
+                      </div>
+                    ))}
+                </div>
+              ))}
               {editing && (
                 <button
                   type="button"
@@ -337,7 +377,15 @@ export function LyricSheet({
                     section={sec}
                     line={li}
                     bars={barCount(ln)}
-                    playingBar={playhead && playhead.section === si && playhead.line === li ? playhead.bar : null}
+                    onPlayingBar={(bar) =>
+                      setLineHead((h) =>
+                        bar === null
+                          ? h && h.section === si && h.line === li
+                            ? null
+                            : h
+                          : { section: si, line: li, bar },
+                      )
+                    }
                     editing={editing}
                     onSongChange={onSongChange}
                   />
@@ -491,4 +539,29 @@ function segmentsOf(line: SheetLine, editing: boolean): { at: number; cells: num
 function inlinePianoRange(notes: SoundingNote[]): { low: number; high: number } {
   const fit = keyboardRange(notes);
   return { low: Math.min(36, fit.low), high: Math.max(71, fit.high) };
+}
+
+type Piece = { at: number; cells: number[]; showMarks: boolean };
+
+/**
+ * 行を小節ごとに分け、各小節の中をコードのかたまり（Piece）に分ける。
+ * 小節の区切りをまたぐコードは、次の小節では名前を出さずに歌詞だけ続ける。
+ */
+function barPieces(line: SheetLine, editing: boolean): Piece[][] {
+  const n = line.chars.length;
+  const starts = [0, ...(line.bars ?? []).filter((b) => b > 0 && b < n)];
+  const barOf = (at: number) => starts.filter((b) => b <= Math.min(at, Math.max(0, n - 1))).length - 1;
+  const out: Piece[][] = starts.map(() => []);
+  for (const seg of segmentsOf(line, editing)) {
+    const groups = new Map<number, number[]>();
+    for (const c of seg.cells) {
+      const b = barOf(c);
+      groups.set(b, [...(groups.get(b) ?? []), c]);
+    }
+    const markBar = barOf(seg.at);
+    if (!groups.has(markBar)) groups.set(markBar, []);
+    for (const [b, cells] of [...groups].sort((x, y) => x[0] - y[0]))
+      out[b].push({ at: seg.at, cells, showMarks: b === markBar });
+  }
+  return out;
 }

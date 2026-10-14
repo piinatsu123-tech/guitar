@@ -91,11 +91,13 @@ export function TapRecorder({ current, tempo, timeSignature, measureTicks, fixed
   const [currentBar, setCurrentBar] = useState(1);
   const beatSeconds = (60 / recTempo) * (4 / timeSignature.denominator);
 
-  const tap = (action?: GuitarAction) => {
+  const tap = (action: GuitarAction | undefined, eventTimeStamp: number) => {
     const s = session.current;
     if (!s) return;
+    // 画面の処理で入力の受け取りが遅れた分（入力が起きた時刻からの経過）を差し引く
+    const handlingDelay = Math.min(0.25, Math.max(0, (performance.now() - eventTimeStamp) / 1000));
     // 記録は補正前の時刻で残し、採譜・測定のときに補正する
-    const time = player.heardTime() - s.recordStart;
+    const time = player.heardTime() - handlingDelay - s.recordStart;
     s.taps.push({ time, action });
     setTapCount(s.taps.length);
     // 手応えは短い電子音（クリックを聞き取りやすいように、ギターの音は鳴らさない）
@@ -129,9 +131,9 @@ export function TapRecorder({ current, tempo, timeSignature, measureTicks, fixed
     if (phase === "idle") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      if (e.key === " ") tap();
-      else if (e.key === "ArrowDown") tap("downstroke");
-      else if (e.key === "ArrowUp") tap("upstroke");
+      if (e.key === " ") tap(undefined, e.timeStamp);
+      else if (e.key === "ArrowDown") tap("downstroke", e.timeStamp);
+      else if (e.key === "ArrowUp") tap("upstroke", e.timeStamp);
       else return;
       // 同じ window に登録された他の操作（演奏画面のスペース＝再生など）にも渡さない
       e.preventDefault();
@@ -337,7 +339,7 @@ export function TapRecorder({ current, tempo, timeSignature, measureTicks, fixed
           disabled={!busy}
           onPointerDown={(e) => {
             e.preventDefault();
-            tap("downstroke");
+            tap("downstroke", e.timeStamp);
           }}
         >
           ↓
@@ -348,7 +350,7 @@ export function TapRecorder({ current, tempo, timeSignature, measureTicks, fixed
           disabled={!busy}
           onPointerDown={(e) => {
             e.preventDefault();
-            tap();
+            tap(undefined, e.timeStamp);
           }}
         >
           タップ
@@ -359,7 +361,7 @@ export function TapRecorder({ current, tempo, timeSignature, measureTicks, fixed
           disabled={!busy}
           onPointerDown={(e) => {
             e.preventDefault();
-            tap("upstroke");
+            tap("upstroke", e.timeStamp);
           }}
         >
           ↑
