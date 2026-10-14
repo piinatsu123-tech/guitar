@@ -22,6 +22,8 @@ type Props = {
   clip: RhythmClip | null;
   onCopy: (clip: RhythmClip) => void;
   onClose: () => void;
+  /** 直前の変更を取り消す（画面全体で共通の「元に戻す」） */
+  onUndo: () => void;
 };
 
 type Tab = "tap" | "grid" | "pattern";
@@ -39,13 +41,12 @@ function sameRhythm(a: Spec[], b: Spec[]): boolean {
  * 譜面で選んだ小節のリズムを直接入力するパネル。
  * 入力したリズムは小節ごとのリズム（パターンより優先）として保存される。
  */
-export function MeasureRhythmPanel({ song, from, to, onSongChange, clip, onCopy, onClose }: Props) {
+export function MeasureRhythmPanel({ song, from, to, onSongChange, clip, onCopy, onClose, onUndo }: Props) {
   const m = ticksPerMeasure(song.timeSignature);
   const measures = useMemo(() => songMeasures(song).slice(from, to + 1), [song, from, to]);
   const n = measures.length;
   const lengthTicks = n * m;
   const [tab, setTab] = useState<Tab>("tap");
-  const [history, setHistory] = useState<Song[]>([]);
   const [playing, setPlaying] = useState(false);
   const [patternId, setPatternId] = useState(song.rhythmPatterns[0]?.id ?? "");
 
@@ -62,10 +63,7 @@ export function MeasureRhythmPanel({ song, from, to, onSongChange, clip, onCopy,
 
   useEffect(() => () => player.stop(), []);
 
-  const commit = (next: Song) => {
-    setHistory((h) => [...h.slice(-19), song]);
-    onSongChange(next);
-  };
+  const commit = onSongChange;
 
   /** 範囲全体のリズムを小節ごとに分けて保存する */
   const apply = (events: Omit<RhythmEvent, "id">[]) => {
@@ -83,13 +81,6 @@ export function MeasureRhythmPanel({ song, from, to, onSongChange, clip, onCopy,
     let next = song;
     for (const x of measures) next = setMeasureRhythm(next, x.sectionId, x.measure, null);
     commit(next);
-  };
-
-  const undo = () => {
-    const prev = history[history.length - 1];
-    if (!prev) return;
-    setHistory((h) => h.slice(0, -1));
-    onSongChange(prev);
   };
 
   // タップしたときに鳴らす音：その位置のコード
@@ -136,9 +127,7 @@ export function MeasureRhythmPanel({ song, from, to, onSongChange, clip, onCopy,
           >
             {playing ? "■ 停止" : "▶ 聴く"}
           </button>
-          <button type="button" className="small-btn" onClick={undo} disabled={history.length === 0}>
-            ↶ 元に戻す
-          </button>
+
           <button type="button" className="small-btn" onClick={onClose}>
             選択を解除
           </button>
@@ -179,7 +168,7 @@ export function MeasureRhythmPanel({ song, from, to, onSongChange, clip, onCopy,
           notesAt={notesAt}
           measureTicks={m}
           fixedLengthTicks={lengthTicks}
-          onUndo={undo}
+          onUndo={onUndo}
           onApply={(events, _len, gridTicks) => {
             if (gridTicks && gridTicks < stepTicks) setStepTicks(gridTicks);
             apply(events);

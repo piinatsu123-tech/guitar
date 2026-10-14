@@ -1,7 +1,7 @@
-import { isValidTimeSignature, ticksPerMeasure } from "../../music/timeline";
-import type { Song } from "../../model/types";
+import { isValidTimeSignature, ticksPerMeasure } from "../music/timeline";
+import type { Song } from "../model/types";
 
-export function BasicTab({ song, onChange }: { song: Song; onChange: (s: Song) => void }) {
+export function SongInfoForm({ song, onChange }: { song: Song; onChange: (s: Song) => void }) {
   const setTs = (numerator: number, denominator: number) => {
     const ts = { numerator, denominator };
     if (isValidTimeSignature(ts)) onChange({ ...song, timeSignature: ts });

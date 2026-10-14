@@ -1,80 +1,11 @@
+// 歌詞の入力（テキスト）とタイミング（16分のマス目）の編集部品。譜面の「歌詞」編集で使う。
 import { useState } from "react";
-import { distributeTicks, lyricsText, reconcileLyrics, sortLyrics, toggleAccent } from "../../music/lyrics";
-import {
-  layoutSong,
-  SIXTEENTH,
-  subdivisionLabel,
-  ticksPerBeat,
-  ticksPerMeasure,
-  toMusicalPosition,
-} from "../../music/timeline";
-import { newId } from "../../model/factory";
-import { findChord, updateChord } from "../../model/songOps";
-import type { ChordEvent, Song } from "../../model/types";
-
-type Props = { song: Song; onChange: (s: Song) => void; focusChordId?: string };
-
-export function LyricsTab({ song, onChange, focusChordId }: Props) {
-  const placed = layoutSong(song);
-  const [chordId, setChordId] = useState<string | undefined>(
-    findChord(song, focusChordId)?.chord.id ?? placed[0]?.chord.id,
-  );
-  const current = placed.find((p) => p.chord.id === chordId) ?? placed[0];
-
-  return (
-    <div className="lyrics-editor">
-      <div className="card">
-        <h2 className="card-title">コードごとの歌詞</h2>
-        <p className="muted small">
-          歌詞は各コードに割り当てます。入力すると文字がコードの長さに均等に配置されます。位置は下の「タイミング」で調整できます。歌詞は空欄でもかまいません。
-        </p>
-        {song.sections.map((section) => (
-          <div key={section.id} className="lyrics-section">
-            <h3 className="block-title">{section.name}</h3>
-            <ul className="lyric-rows">
-              {section.chords.map((chord) => (
-                <li key={chord.id} className={`lyric-row${chord.id === current?.chord.id ? " on" : ""}`}>
-                  <button
-                    type="button"
-                    className={`chip${chord.id === current?.chord.id ? " on" : ""}`}
-                    onClick={() => setChordId(chord.id)}
-                  >
-                    {chord.chordName}
-                  </button>
-                  <LyricInput
-                    chord={chord}
-                    onFocus={() => setChordId(chord.id)}
-                    onCommit={(text) =>
-                      onChange(
-                        updateChord(song, chord.id, (c) => ({
-                          ...c,
-                          lyrics: reconcileLyrics(c.lyrics, text, c.durationTicks, SIXTEENTH, newId),
-                        })),
-                      )
-                    }
-                  />
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-      {current && (
-        <TimingEditor
-          key={current.chord.id}
-          song={song}
-          chord={current.chord}
-          absStart={current.absStart}
-          sectionName={current.section.name}
-          onChange={(c) => onChange(updateChord(song, c.id, () => c))}
-        />
-      )}
-    </div>
-  );
-}
+import { distributeTicks, lyricsText, sortLyrics, toggleAccent } from "../music/lyrics";
+import { SIXTEENTH, subdivisionLabel, ticksPerBeat, ticksPerMeasure, toMusicalPosition } from "../music/timeline";
+import type { ChordEvent, Song } from "../model/types";
 
 /** 入力中は文字列のまま保持し、確定（フォーカスアウト・Enter）時に文字単位のイベントへ反映する */
-function LyricInput({
+export function LyricInput({
   chord,
   onCommit,
   onFocus,
@@ -111,7 +42,7 @@ function LyricInput({
   );
 }
 
-function TimingEditor({
+export function TimingEditor({
   song,
   chord,
   absStart,

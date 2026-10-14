@@ -1,21 +1,15 @@
 import { useState } from "react";
-import { SettingsPanel } from "../../components/SettingsPanel";
 import type { DisplaySettings, Song } from "../../model/types";
-import { BasicTab } from "./BasicTab";
 import { FormTab } from "./FormTab";
-import { LyricsTab } from "./LyricsTab";
-import { ProgressionTab } from "./ProgressionTab";
 import { RhythmTab } from "./RhythmTab";
 
-export type EditTab = "basic" | "progression" | "forms" | "rhythm" | "lyrics" | "display";
+// 曲情報・コード進行・歌詞・小節のリズムは、演奏画面の譜面で直接編集する。
+// この画面は「部品」の登録だけ：コードフォームとリズムパターン。
+export type EditTab = "forms" | "rhythm";
 
 const TABS: { id: EditTab; label: string }[] = [
-  { id: "basic", label: "曲情報" },
-  { id: "progression", label: "コード進行" },
-  { id: "forms", label: "フォーム" },
-  { id: "rhythm", label: "リズム" },
-  { id: "lyrics", label: "歌詞" },
-  { id: "display", label: "表示設定" },
+  { id: "forms", label: "コードフォーム" },
+  { id: "rhythm", label: "リズムパターン" },
 ];
 
 type Props = {
@@ -23,7 +17,6 @@ type Props = {
   initialTab?: EditTab;
   focusChordId?: string;
   settings: DisplaySettings;
-  onSettingsChange: (s: DisplaySettings) => void;
   onSave: (song: Song) => void;
   onClose: () => void;
 };
@@ -32,15 +25,7 @@ type Props = {
  * 編集画面。編集は下書き（draft）に対して行い、「保存」で演奏画面へ反映する。
  * 表示設定だけは即時反映・即時保存する。
  */
-export function EditScreen({
-  song,
-  initialTab = "progression",
-  focusChordId,
-  settings,
-  onSettingsChange,
-  onSave,
-  onClose,
-}: Props) {
+export function EditScreen({ song, initialTab = "forms", focusChordId, settings, onSave, onClose }: Props) {
   const [draft, setDraft] = useState<Song>(song);
   const [tab, setTab] = useState<EditTab>(initialTab);
   const [dirty, setDirty] = useState(false);
@@ -67,7 +52,7 @@ export function EditScreen({
           ‹ 演奏画面
         </button>
         <div className="song-title-block">
-          <h1>編集: {draft.title}</h1>
+          <h1>フォーム・パターン: {draft.title}</h1>
           <div className="song-meta">
             {dirty ? <span className="unsaved">● 未保存の変更があります</span> : <span>保存済み</span>}
           </div>
@@ -108,18 +93,8 @@ export function EditScreen({
       </div>
 
       <div className="tab-panel" role="tabpanel">
-        {tab === "basic" && <BasicTab song={draft} onChange={change} />}
-        {tab === "progression" && <ProgressionTab song={draft} onChange={change} />}
         {tab === "forms" && <FormTab song={draft} onChange={change} settings={settings} focusChordId={focusChordId} />}
         {tab === "rhythm" && <RhythmTab song={draft} onChange={change} />}
-        {tab === "lyrics" && <LyricsTab song={draft} onChange={change} focusChordId={focusChordId} />}
-        {tab === "display" && (
-          <div className="card">
-            <h2 className="card-title">表示設定</h2>
-            <p className="muted small">表示設定は変更するとすぐに反映・保存されます（全曲共通）。</p>
-            <SettingsPanel settings={settings} onChange={onSettingsChange} />
-          </div>
-        )}
       </div>
     </div>
   );

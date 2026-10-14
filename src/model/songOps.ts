@@ -4,7 +4,7 @@ import { analyzeForm, positionsFromFrets, type ChordForm, type FormAnalysis } fr
 import { generateForms } from "../music/formGenerator";
 import { clampLyrics } from "../music/lyrics";
 import { SIXTEENTH } from "../music/timeline";
-import { newId } from "./factory";
+import { makeChord, makeSection, newId } from "./factory";
 import type { ChordEvent, RhythmEvent, Section, Song } from "./types";
 
 const autoFormCache = new Map<string, ChordForm | null>();
@@ -163,4 +163,105 @@ export function setMeasureRhythm(
     next.sort((a, b) => a.measure - b.measure);
     return { ...s, measureRhythms: next.length ? next : undefined };
   });
+}
+
+// ---- コード進行の編集（譜面から行う） ----
+
+/** コードを、指定のコードの前（position = "before"）または後ろに追加する */
+export function insertChord(
+  song: Song,
+  chordId: string,
+  position: "before" | "after",
+  chordName: string,
+  durationTicks: number,
+): { song: Song; chordId: string } {
+  const created = makeChord(chordName, durationTicks);
+  const sections = song.sections.map((s) => {
+    const i = s.chords.findIndex((c) => c.id === chordId);
+    if (i < 0) return s;
+    const chords = [...s.chords];
+    chords.splice(position === "before" ? i : i + 1, 0, created);
+    return { ...s, chords };
+  });
+  return { song: { ...song, sections }, chordId: created.id };
+}
+
+/** コードを削除する（歌詞も一緒に消える）。未使用になったフォームも整理する */
+export function deleteChord(song: Song, chordId: string): Song {
+  return pruneForms({
+    ...song,
+    sections: song.sections.map((s) => ({ ...s, chords: s.chords.filter((c) => c.id !== chordId) })),
+  });
+}
+
+/**
+ * コードを2つに分ける（前半はそのまま、後半は同じコード名の新しいコード）。
+ * 歌詞は位置に応じて前半・後半に振り分ける。
+ */
+export function splitChord(song: Song, chordId: string, atTicks: number): { song: Song; chordId: string } | null {
+  const found = findChord(song, chordId);
+  if (!found || atTicks <= 0 || atTicks >= found.chord.durationTicks) return null;
+  const c = found.chord;
+  const second = {
+    ...makeChord(c.chordName, c.durationTicks - atTicks),
+    formId: c.formId,
+    rhythmPatternId: c.rhythmPatternId,
+    lyrics: c.lyrics.filter((l) => l.startTick >= atTicks).map((l) => ({ ...l, startTick: l.startTick - atTicks })),
+  };
+  const first = { ...c, durationTicks: atTicks, lyrics: c.lyrics.filter((l) => l.startTick < atTicks) };
+  const sections = song.sections.map((s) => {
+    const i = s.chords.findIndex((x) => x.id === chordId);
+    if (i < 0) return s;
+    const chords = [...s.chords];
+    chords.splice(i, 1, first, second);
+    return { ...s, chords };
+  });
+  return { song: { ...song, sections }, chordId: second.id };
+}
+
+export function addSection(song: Song, afterSectionId: string | null, name: string, measureTicks: number): Song {
+  const section = makeSection(name, [makeChord("C", measureTicks)]);
+  const sections = [...song.sections];
+  const i = afterSectionId ? sections.findIndex((s) => s.id === afterSectionId) : sections.length - 1;
+  sections.splice(i + 1, 0, section);
+  return { ...song, sections };
+}
+
+export function deleteSection(song: Song, sectionId: string): Song {
+  return pruneForms({ ...song, sections: song.sections.filter((s) => s.id !== sectionId) });
+}
+
+export function moveSection(song: Song, sectionId: string, delta: number): Song {
+  const i = song.sections.findIndex((s) => s.id === sectionId);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= song.sections.length) return song;
+  const sections = [...song.sections];
+  const [x] = sections.splice(i, 1);
+  sections.splice(j, 0, x);
+  return { ...song, sections };
+}
+
+/** セクションを複製する（コード・フォーム指定・リズムの設定・小節のリズムも。歌詞は複製しない） */
+export function duplicateSection(song: Song, sectionId: string): Song {
+  const i = song.sections.findIndex((s) => s.id === sectionId);
+  if (i < 0) return song;
+  const src = song.sections[i];
+  const copy: Section = {
+    ...makeSection(
+      `${src.name}（コピー）`,
+      src.chords.map((c) => ({
+        ...makeChord(c.chordName, c.durationTicks),
+        formId: c.formId,
+        rhythmPatternId: c.rhythmPatternId,
+      })),
+    ),
+    rhythmPatternId: src.rhythmPatternId,
+    measureRhythms: src.measureRhythms?.map((r) => ({
+      measure: r.measure,
+      events: r.events.map((e) => ({ ...e, id: newId() })),
+    })),
+  };
+  const sections = [...song.sections];
+  sections.splice(i + 1, 0, copy);
+  return { ...song, sections };
 }

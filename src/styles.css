@@ -1620,7 +1620,8 @@ input.narrow {
   padding: 0 3px;
   background: var(--surface);
 }
-.measure-panel {
+.measure-panel,
+.edit-panel {
   position: sticky;
   bottom: 72px;
   z-index: 9;
@@ -1650,4 +1651,22 @@ input.narrow {
 }
 .small-tabs button {
   min-height: 38px;
+}
+
+.edit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 10px;
+}
+.edit-toolbar .small-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.edit-panel .lyric-row {
+  flex-wrap: nowrap;
+}
+.edit-panel .lyric-input {
+  flex: 1 1 auto;
 }

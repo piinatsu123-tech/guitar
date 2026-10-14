@@ -241,19 +241,33 @@ await check("フォーム: 手動入力（指板タップ）と構成音チェ�
   assert.deepEqual(await tabNumbers(), ["×", "3", "×", "0", "2", "3"]);
 });
 
-await check("コード名を変えると TAB が古いまま残らない", async () => {
-  await page.getByRole("button", { name: "編集", exact: true }).click();
-  await page.getByRole("tab", { name: "コード進行" }).click();
-  const input = page.locator('section[aria-label="セクション Aメロ"] .chord-name-input').nth(1);
-  await input.fill("Em");
-  await page.getByRole("button", { name: "保存", exact: true }).click();
-  await page.getByRole("button", { name: "‹ 演奏画面" }).click();
+const editMode = (name) =>
+  page
+    .getByRole("radiogroup", { name: "編集モード" })
+    .getByRole("radio", { name: new RegExp(name) })
+    .click();
+const detailView = () =>
+  page.getByRole("radiogroup", { name: "表示形式" }).getByRole("radio", { name: "コード詳細" }).click();
+const scoreSlot = (barNo, i = 0) =>
+  page
+    .locator(".score .tl-measure")
+    .nth(barNo - 1)
+    .locator(".tl-slot")
+    .nth(i);
+
+await check("譜面でコード編集: コード名を変えると TAB が古いまま残らない", async () => {
+  await editMode("コード");
+  await scoreSlot(2).click(); // Aメロ 2小節目（保存フォームのある G）
+  await page.getByLabel("コード名").fill("Em");
+  await page.getByLabel("コード名").press("Enter");
+  await editMode("見る");
+  await detailView();
   await selectChord("Aメロ", "Em");
   assert.deepEqual(await tabNumbers(), ["0", "0", "0", "2", "2", "0"]);
 });
 
 await check("リズム: 音符とストロークを独立して設定（音符＋弾かない＝伸ばす）", async () => {
-  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("button", { name: "フォーム・パターン" }).click();
   await page.getByRole("tab", { name: "リズム" }).click();
   await page.locator(".pattern-editor").waitFor();
   const steps = page.locator(".step");
@@ -267,20 +281,22 @@ await check("リズム: 音符とストロークを独立して設定（音符�
   assert.ok((await preview.locator('[aria-label="弾かずに伸ばす"]').count()) >= 1);
   assert.ok((await preview.locator(".note-glyph.rest").count()) >= 1);
   await page.getByRole("button", { name: "保存", exact: true }).click();
+  await page.getByRole("button", { name: "‹ 演奏画面" }).click();
 });
 
-await check("歌詞: テキスト編集とタイミング調整（音楽的位置で保存）", async () => {
-  await page.getByRole("tab", { name: "歌詞" }).click();
-  const input = page.getByLabel("C の歌詞").first();
+await check("譜面で歌詞編集: テキスト編集とタイミング調整（音楽的位置で保存）", async () => {
+  await editMode("歌詞");
+  await scoreSlot(1).click();
+  const input = page.getByLabel("C の歌詞");
   await input.fill("あさのひかりが!");
   await input.press("Enter");
   await page.locator(".lyric-chip", { hasText: "!" }).click();
   await page.locator(".timing-cell").nth(15).click();
-  assert.match(await page.locator(".lyrics-editor .btn-row .small").first().textContent(), /「!」: 1小節 4拍（a）/);
-  await page.getByRole("button", { name: "保存", exact: true }).click();
-  await page.getByRole("button", { name: "‹ 演奏画面" }).click();
+  await page.getByText(/「!」: 1小節 4拍（a）/).waitFor();
+  await editMode("見る");
+  await detailView();
   await selectChord("Aメロ", "C");
-  assert.ok((await page.locator(".tl-lyrics").textContent()).includes("!"));
+  assert.ok((await page.locator(".play-detail .tl-lyrics").textContent()).includes("!"));
 });
 
 // レスポンシブ：画面幅が変わっても小節内の相対位置が同じ
@@ -358,7 +374,7 @@ await check("再生: 選択中のコードから鳴らし、選択がテンポ�
 });
 
 await check("リズム編集: ▶ 試聴 と停止", async () => {
-  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("button", { name: "フォーム・パターン" }).click();
   await page.getByRole("tab", { name: "リズム" }).click();
   await page.getByRole("button", { name: /▶ 試聴/ }).click();
   await page.getByRole("button", { name: "■ 停止" }).waitFor();
@@ -396,7 +412,7 @@ async function tapAlong(offsetsSec, keys, waitText = "録音中") {
 }
 
 await check("タップ入力: クリックに合わせた4分のタップ → 4分ダウン×4", async () => {
-  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("button", { name: "フォーム・パターン" }).click();
   await page.getByRole("tab", { name: "リズム" }).click();
   await page.locator(".pattern-editor .chip, .rhythm-editor .chip").filter({ hasText: "全音符" }).click();
   await page.getByRole("button", { name: "● 録音" }).click();
@@ -486,7 +502,7 @@ const stepCells = async (n) => {
 const EIGHTHS_UPDOWN = ["♪↓", "♪↑", "♪↓", "♪↑", "♪↓", "♪↑", "♪↓", "♪↑"];
 
 await check("タップ入力: 16分グリッドでも 8分を叩けば ↓↑（8ビートとして判断）", async () => {
-  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("button", { name: "フォーム・パターン" }).click();
   await page.getByRole("tab", { name: "リズム" }).click();
   await page.getByRole("radio", { name: "16分" }).click();
   await page.getByRole("button", { name: "● 録音" }).click();
@@ -538,7 +554,7 @@ async function calibrationScenario() {
 }
 
 await check("タップ入力: 細かさ「自動」で16分を叩くと16分で採譜し、マス目も16分になる", async () => {
-  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("button", { name: "フォーム・パターン" }).click();
   await page.getByRole("tab", { name: "リズム" }).click();
   await page.getByRole("radio", { name: "8分" }).click(); // マス目は8分のまま始める（今回の症状の条件）
   assert.equal(await page.locator(".step").count(), 8);
@@ -566,7 +582,7 @@ await check("譜面でリズム編集: 1小節をマス目で編集すると、�
   if ((await page.locator(".score").count()) === 0) {
     await page.getByRole("radiogroup", { name: "表示形式" }).getByRole("radio", { name: "譜面" }).click();
   }
-  await page.getByRole("button", { name: "リズム編集" }).click();
+  await editMode("リズム");
   const before2 = await notesIn(2);
   const before3 = await notesIn(3);
   await selectBar(2);
@@ -614,7 +630,7 @@ await check("譜面でリズム編集: コピー＆貼り付け、パターン�
   await page.getByRole("button", { name: "直接入力をやめてパターンに戻す" }).click();
   assert.equal(await notesIn(5), before5);
   assert.equal(await bar(5).locator(".tl-custom").count(), 0);
-  await page.getByRole("button", { name: "↶ 元に戻す" }).click();
+  await page.getByRole("button", { name: "元に戻す", exact: true }).click();
   assert.equal(await notesIn(5), 8);
 });
 
@@ -638,6 +654,57 @@ await check("譜面でリズム編集: 再読み込み後も残る", async () =>
   assert.equal(await notesIn(2), 8);
   assert.equal(await notesIn(5), 8);
   assert.equal(await bar(5).locator(".tl-custom").count(), 1);
+});
+
+await check("新しい曲: 譜面のコード編集と曲情報が開き、コード・セクションを作れる", async () => {
+  await page.getByRole("button", { name: "曲一覧へ戻る" }).click();
+  await page.getByRole("button", { name: "＋ 新しい曲" }).click();
+  await page
+    .getByRole("radiogroup", { name: "編集モード" })
+    .getByRole("radio", { name: /コード/, checked: true })
+    .waitFor();
+  await page.locator(".card").getByLabel("曲名").fill("テストの曲");
+  assert.equal(await page.locator(".song-title-block h1").textContent(), "テストの曲");
+  // セクションをテキストでまとめて入力
+  await scoreSlot(1).click();
+  await page.getByRole("tab", { name: /セクション/ }).click();
+  await page.locator(".edit-panel summary").click();
+  await page.getByLabel("コード進行のテキスト").fill("| G | D | Em C | D |");
+  await page.locator(".edit-panel").getByRole("button", { name: "適用" }).click();
+  const names = await page.locator(".score .tl-diagram:not(.continued) .tl-diagram-name").allTextContents();
+  assert.deepEqual(names, ["G", "D", "Em", "C", "D"]);
+  // コードを選んで半分に分け、後ろに追加
+  await scoreSlot(1).click();
+  await page.getByRole("tab", { name: /コード「/ }).click();
+  await page.getByRole("button", { name: "半分に分ける" }).click();
+  assert.deepEqual(await page.locator(".score .tl-diagram:not(.continued) .tl-diagram-name").allTextContents(), [
+    "G",
+    "G",
+    "D",
+    "Em",
+    "C",
+    "D",
+  ]);
+  await page.getByRole("button", { name: "元に戻す" }).click();
+  assert.deepEqual(await page.locator(".score .tl-diagram:not(.continued) .tl-diagram-name").allTextContents(), [
+    "G",
+    "D",
+    "Em",
+    "C",
+    "D",
+  ]);
+  await page.getByRole("button", { name: "やり直す" }).click();
+  assert.equal(await page.locator(".score .tl-diagram:not(.continued)").count(), 6);
+  // 再読み込みしても残る
+  await page.reload();
+  assert.equal(await page.locator(".song-title-block h1").textContent(), "テストの曲");
+  assert.equal(await page.locator(".score .tl-diagram:not(.continued)").count(), 6);
+});
+
+await check("編集画面はコードフォームとリズムパターンだけ", async () => {
+  await page.getByRole("button", { name: "フォーム・パターン" }).click();
+  assert.deepEqual(await page.getByRole("tab").allTextContents(), ["コードフォーム", "リズムパターン"]);
+  await page.getByRole("button", { name: "‹ 演奏画面" }).click();
 });
 
 await check("ページエラーなし", async () => {

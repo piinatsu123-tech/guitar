@@ -10,7 +10,7 @@ import { exportSongs, importSongs, loadState, saveState, SCHEMA_VERSION, type Ap
 
 type Screen =
   | { kind: "list" }
-  | { kind: "play"; songId: string }
+  | { kind: "play"; songId: string; startEditing?: boolean }
   | { kind: "edit"; songId: string; tab?: EditTab; chordId?: string };
 
 function initialState(): AppState {
@@ -87,6 +87,8 @@ export function App() {
           setScreen({ kind: "edit", songId: song.id, tab: tab as EditTab | undefined, chordId: selectedChordId })
         }
         onBack={() => setScreen({ kind: "list" })}
+        initialEditMode={screen.startEditing ? "chord" : "view"}
+        initialSongInfo={!!screen.startEditing}
       />
     );
   } else if (screen.kind === "edit" && song) {
@@ -96,7 +98,6 @@ export function App() {
         initialTab={screen.tab}
         focusChordId={screen.chordId}
         settings={state.settings}
-        onSettingsChange={setSettings}
         onSave={replaceSong}
         onClose={() => setScreen({ kind: "play", songId: song.id })}
       />
@@ -109,7 +110,7 @@ export function App() {
         onCreate={() => {
           const s = addSong(createEmptySong());
           setSelectedChordId(undefined);
-          setScreen({ kind: "edit", songId: s.id, tab: "basic" });
+          setScreen({ kind: "play", songId: s.id, startEditing: true });
         }}
         onAddSample={() => addSong(createSampleSong())}
         onDuplicate={(id) => {

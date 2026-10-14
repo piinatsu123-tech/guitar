@@ -8,6 +8,9 @@ import { ProgressionView } from "../components/ProgressionView";
 import { RhythmTimeline } from "../components/RhythmTimeline";
 import { ScoreView } from "../components/ScoreView";
 import { SettingsPanel } from "../components/SettingsPanel";
+import { SongInfoForm } from "../components/SongInfoForm";
+import { ChordPanel } from "./play/ChordPanel";
+import { LyricsPanel } from "./play/LyricsPanel";
 import { TabView } from "../components/TabView";
 import { sectionMeasureRows } from "../music/arrangement";
 import { formShorthand, soundingNotes } from "../music/chord";
@@ -24,9 +27,22 @@ type Props = {
   onSelectChord: (id: string) => void;
   /** 歌詞のマークなど、演奏画面からの即時保存 */
   onSongChange: (song: Song) => void;
+  /** コードフォーム・リズムパターンの編集画面を開く */
   onEdit: (tab?: string) => void;
   onBack: () => void;
+  /** 開いたときの編集モード（新しい曲を作ったときなど） */
+  initialEditMode?: EditMode;
+  initialSongInfo?: boolean;
 };
+
+export type EditMode = "view" | "chord" | "rhythm" | "lyrics";
+
+const EDIT_MODES: [EditMode, string][] = [
+  ["view", "見る"],
+  ["chord", "コード"],
+  ["rhythm", "リズム"],
+  ["lyrics", "歌詞"],
+];
 
 export function PlayScreen({
   song,
@@ -37,6 +53,8 @@ export function PlayScreen({
   onSongChange,
   onEdit,
   onBack,
+  initialEditMode = "view",
+  initialSongInfo = false,
 }: Props) {
   const placed = useMemo(() => layoutSong(song), [song]);
   const current = placed.find((p) => p.chord.id === selectedChordId) ?? placed[0];
@@ -44,8 +62,38 @@ export function PlayScreen({
   const [showSettings, setShowSettings] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [metronome, setMetronome] = useState(false);
-  // 譜面でのリズム編集：選んだ小節の範囲（曲全体の通し番号）
-  const [rhythmEdit, setRhythmEdit] = useState(false);
+  // 譜面での編集モード（見る／コード／リズム／歌詞）
+  const [editMode, setEditMode] = useState<EditMode>(initialEditMode);
+  const [showSongInfo, setShowSongInfo] = useState(initialSongInfo);
+  const rhythmEdit = editMode === "rhythm";
+  // 編集の履歴（画面全体で共通の「元に戻す／やり直す」）
+  const [past, setPast] = useState<Song[]>([]);
+  const [future, setFuture] = useState<Song[]>([]);
+  const commit = (next: Song) => {
+    setPast((p) => [...p.slice(-49), song]);
+    setFuture([]);
+    onSongChange(next);
+  };
+  const undo = () => {
+    const prev = past[past.length - 1];
+    if (!prev) return;
+    setPast((p) => p.slice(0, -1));
+    setFuture((f) => [song, ...f]);
+    onSongChange(prev);
+  };
+  const redo = () => {
+    const nextSong = future[0];
+    if (!nextSong) return;
+    setFuture((f) => f.slice(1));
+    setPast((p) => [...p, song]);
+    onSongChange(nextSong);
+  };
+  const changeMode = (mode: EditMode) => {
+    setEditMode(mode);
+    setMeasureSel(null);
+    // 編集は譜面で行う
+    if (mode !== "view" && settings.playView !== "score") onSettingsChange({ ...settings, playView: "score" });
+  };
   const [measureSel, setMeasureSel] = useState<{ anchor: number; end: number } | null>(null);
   const [clip, setClip] = useState<RhythmClip | null>(null);
   const onMeasureClick = (g: number) => {
@@ -130,7 +178,7 @@ export function PlayScreen({
   }, [song, current]);
 
   const toggleLyricAccent = (chordId: string, lyricId: string) => {
-    onSongChange(updateChord(song, chordId, (c) => ({ ...c, lyrics: toggleAccent(c.lyrics, lyricId) })));
+    commit(updateChord(song, chordId, (c) => ({ ...c, lyrics: toggleAccent(c.lyrics, lyricId) })));
   };
 
   const prev = current ? placed[current.globalIndex - 1] : undefined;
@@ -171,19 +219,6 @@ export function PlayScreen({
               </button>
             ))}
           </div>
-          {settings.playView === "score" && (
-            <button
-              type="button"
-              className={`ghost${rhythmEdit ? " active" : ""}`}
-              aria-pressed={rhythmEdit}
-              onClick={() => {
-                setRhythmEdit((v) => !v);
-                setMeasureSel(null);
-              }}
-            >
-              {rhythmEdit ? "✓ リズム編集中" : "リズム編集"}
-            </button>
-          )}
           <button
             type="button"
             className={`ghost${showSettings ? " active" : ""}`}
@@ -192,11 +227,55 @@ export function PlayScreen({
           >
             表示設定
           </button>
-          <button type="button" className="primary" onClick={() => onEdit()}>
-            編集
+          <button type="button" className="ghost" onClick={() => onEdit("forms")}>
+            フォーム・パターン
           </button>
         </div>
       </header>
+
+      <div className="edit-toolbar" role="toolbar" aria-label="編集">
+        <div className="segmented" role="radiogroup" aria-label="編集モード">
+          {EDIT_MODES.map(([mode, text]) => (
+            <button
+              key={mode}
+              type="button"
+              role="radio"
+              aria-checked={editMode === mode}
+              className={editMode === mode ? "on" : ""}
+              onClick={() => changeMode(mode)}
+            >
+              {mode === "view" ? text : `✎ ${text}`}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className={`small-btn${showSongInfo ? " active" : ""}`}
+          aria-expanded={showSongInfo}
+          onClick={() => setShowSongInfo((v) => !v)}
+        >
+          曲情報
+        </button>
+        <button type="button" className="small-btn" onClick={undo} disabled={past.length === 0} aria-label="元に戻す">
+          ↶ 元に戻す
+        </button>
+        <button type="button" className="small-btn" onClick={redo} disabled={future.length === 0} aria-label="やり直す">
+          ↷ やり直す
+        </button>
+        {editMode !== "view" && (
+          <span className="muted small">
+            {editMode === "chord" && "コードをタップして編集"}
+            {editMode === "rhythm" && "小節をタップして選択"}
+            {editMode === "lyrics" && "コードをタップして歌詞を編集"}
+            ・変更はすぐ保存されます
+          </span>
+        )}
+      </div>
+      {showSongInfo && (
+        <div className="card">
+          <SongInfoForm song={song} onChange={commit} />
+        </div>
+      )}
       {(showSettings || settings.playView === "score") && (
         <SettingsPanel settings={settings} onChange={onSettingsChange} compact togglesOnly={!showSettings} />
       )}
@@ -356,11 +435,24 @@ export function PlayScreen({
           song={song}
           from={selRange.from}
           to={selRange.to}
-          onSongChange={onSongChange}
+          onSongChange={commit}
+          onUndo={undo}
           clip={clip}
           onCopy={setClip}
           onClose={() => setMeasureSel(null)}
         />
+      )}
+      {editMode === "chord" && settings.playView === "score" && (
+        <ChordPanel
+          song={song}
+          chordId={current?.chord.id}
+          onSongChange={commit}
+          onSelectChord={onSelectChord}
+          onEditForm={() => onEdit("forms")}
+        />
+      )}
+      {editMode === "lyrics" && settings.playView === "score" && (
+        <LyricsPanel song={song} chordId={current?.chord.id} onSongChange={commit} />
       )}
 
       <nav className="chord-nav" aria-label="コード移動">
