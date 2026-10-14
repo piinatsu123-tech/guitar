@@ -206,9 +206,16 @@ export function splitChord(song: Song, chordId: string, atTicks: number): { song
     ...makeChord(c.chordName, c.durationTicks - atTicks),
     formId: c.formId,
     rhythmPatternId: c.rhythmPatternId,
+    lineBreak: c.lineBreak,
     lyrics: c.lyrics.filter((l) => l.startTick >= atTicks).map((l) => ({ ...l, startTick: l.startTick - atTicks })),
   };
-  const first = { ...c, durationTicks: atTicks, lyrics: c.lyrics.filter((l) => l.startTick < atTicks) };
+  // 行の終わりの印は後半に移す
+  const first = {
+    ...c,
+    durationTicks: atTicks,
+    lyrics: c.lyrics.filter((l) => l.startTick < atTicks),
+    lineBreak: undefined,
+  };
   const sections = song.sections.map((s) => {
     const i = s.chords.findIndex((x) => x.id === chordId);
     if (i < 0) return s;

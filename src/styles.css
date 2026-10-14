@@ -1734,3 +1734,62 @@ input.narrow {
   font-weight: 800;
   color: var(--accent);
 }
+
+/* ---------- 歌詞シート ---------- */
+
+.lyric-sheet {
+  margin-bottom: 16px;
+}
+.sheet-section {
+  margin: 14px 0;
+}
+.sheet-line {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 4px;
+  margin: 6px 0 10px;
+  padding-left: 4px;
+}
+.sheet-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 0 1px;
+  min-width: 26px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.sheet-cell:hover {
+  background: var(--surface-2);
+}
+.sheet-cell.selected {
+  outline: 3px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+}
+.sheet-chord {
+  min-height: 1.4em;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--primary);
+  white-space: nowrap;
+}
+.sheet-chord.nc {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+.sheet-char {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--lyric);
+  line-height: 1.2;
+}
+.sheet-cell.end .sheet-char {
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+.sheet-panel .chip.used {
+  border-color: var(--primary);
+}

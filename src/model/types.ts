@@ -59,6 +59,8 @@ export type ChordEvent = {
   /** 未指定ならセクション → 曲の既定パターンの順に解決する */
   rhythmPatternId?: string;
   lyrics: LyricEvent[];
+  /** 歌詞シートで、このコードの歌詞のあとで行が終わる */
+  lineBreak?: boolean;
 };
 
 /**

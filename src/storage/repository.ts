@@ -163,6 +163,7 @@ export function normalizeSong(v: unknown): Song {
             durationTicks,
             formId: typeof c.formId === "string" && formIds.has(c.formId) ? c.formId : undefined,
             rhythmPatternId: patternRef(c.rhythmPatternId),
+            lineBreak: c.lineBreak === true ? true : undefined,
             lyrics: arr(c.lyrics)
               .filter(isObj)
               .map((l) => ({

@@ -3,14 +3,14 @@ import { createEmptySong, createSampleSong } from "./model/factory";
 import { touch } from "./model/songOps";
 import { DEFAULT_SETTINGS, type DisplaySettings, type Song } from "./model/types";
 import { EditScreen, type EditTab } from "./screens/edit/EditScreen";
-import { PlayScreen } from "./screens/PlayScreen";
+import { PlayScreen, type EditMode } from "./screens/PlayScreen";
 import { SongList } from "./screens/SongList";
 import { VERSION_LABEL } from "./version";
 import { exportSongs, importSongs, loadState, saveState, SCHEMA_VERSION, type AppState } from "./storage/repository";
 
 type Screen =
   | { kind: "list" }
-  | { kind: "play"; songId: string; startEditing?: boolean }
+  | { kind: "play"; songId: string; startEditing?: EditMode }
   | { kind: "edit"; songId: string; tab?: EditTab; chordId?: string };
 
 function initialState(): AppState {
@@ -87,7 +87,7 @@ export function App() {
           setScreen({ kind: "edit", songId: song.id, tab: tab as EditTab | undefined, chordId: selectedChordId })
         }
         onBack={() => setScreen({ kind: "list" })}
-        initialEditMode={screen.startEditing ? "chord" : "view"}
+        initialEditMode={screen.startEditing ?? "view"}
         initialSongInfo={!!screen.startEditing}
       />
     );
@@ -110,7 +110,12 @@ export function App() {
         onCreate={() => {
           const s = addSong(createEmptySong());
           setSelectedChordId(undefined);
-          setScreen({ kind: "play", songId: s.id, startEditing: true });
+          setScreen({ kind: "play", songId: s.id, startEditing: "chord" });
+        }}
+        onCreateFromLyrics={() => {
+          const s = addSong({ ...createEmptySong(), sections: [] });
+          setSelectedChordId(undefined);
+          setScreen({ kind: "play", songId: s.id, startEditing: "sheet" });
         }}
         onAddSample={() => addSong(createSampleSong())}
         onDuplicate={(id) => {

@@ -244,7 +244,7 @@ await check("フォーム: 手動入力（指板タップ）と構成音チェ�
 const editMode = (name) =>
   page
     .getByRole("radiogroup", { name: "編集モード" })
-    .getByRole("radio", { name: new RegExp(name) })
+    .getByRole("radio", { name: name === "見る" ? "見る" : `✎ ${name}`, exact: true })
     .click();
 const detailView = () =>
   page.getByRole("radiogroup", { name: "表示形式" }).getByRole("radio", { name: "コード詳細" }).click();
@@ -726,6 +726,52 @@ await check("aug・dim に 7th・テンションが付いたコードを入力�
     ["Caugmaj7", "Bm7b5", "E7#9", "Am9", "D13"],
   );
   assert.equal(await page.locator(".score .tl-measure").first().locator(".tl-diagram-box .tab-view").count(), 1);
+});
+
+await check("歌詞から作る: 貼り付けた歌詞の文字にコードを置くと、そのまま曲になる", async () => {
+  await page.getByRole("button", { name: "曲一覧へ戻る" }).click();
+  await page.getByRole("button", { name: "＋ 歌詞から作る" }).click();
+  await page.getByLabel("貼り付ける歌詞").fill("[Aメロ]\nあさのひかり まどをたたく\n\n[サビ]\nひかりのなかへ");
+  await page.getByRole("button", { name: "シートにする" }).click();
+  const cell = (sec, line, at) =>
+    page.locator(".sheet-section").nth(sec).locator(".sheet-line").nth(line).locator(".sheet-cell").nth(at);
+  assert.deepEqual(await page.locator(".sheet-section h2").allTextContents(), ["Aメロ", "サビ"]);
+  await cell(0, 0, 0).click();
+  await page.getByRole("group", { name: "ルート" }).getByRole("button", { name: "C", exact: true }).click();
+  await cell(0, 0, 6).click(); // 「ま」
+  await page.getByRole("group", { name: "ルート" }).getByRole("button", { name: "A", exact: true }).click();
+  await page.getByRole("group", { name: "種類" }).getByRole("button", { name: "m7", exact: true }).click();
+  await cell(0, 0, 13).click(); // 行末
+  await page.getByLabel("コード名を入力").fill("G7");
+  await page.getByLabel("コード名を入力").press("Enter");
+  await cell(1, 0, 0).click();
+  await page.locator(".sheet-panel").getByRole("button", { name: "C", exact: true }).first().click(); // この曲のコードから
+  assert.deepEqual(await cell(0, 0, 6).locator(".sheet-chord").textContent(), "Am7");
+  // 譜面に反映（1コード＝1小節）
+  await editMode("見る");
+  assert.deepEqual(await page.locator(".score .tl-diagram:not(.continued) .tl-diagram-name").allTextContents(), [
+    "C",
+    "Am7",
+    "G7",
+    "C",
+  ]);
+  assert.ok(
+    (await page.locator(".score .tl-measure").nth(1).locator(".tl-lyrics").textContent()).includes("まどをたたく"),
+  );
+  // 取り除くと、その歌詞は前のコードの続きに
+  await editMode("歌詞シート");
+  await cell(0, 0, 6).click();
+  await page.locator(".sheet-panel").getByRole("button", { name: "取り除く" }).click();
+  await editMode("見る");
+  assert.deepEqual(await page.locator(".score .tl-diagram:not(.continued) .tl-diagram-name").allTextContents(), [
+    "C",
+    "G7",
+    "C",
+  ]);
+  // 再読み込み後もシートの行の形が残る
+  await page.reload();
+  await editMode("歌詞シート");
+  assert.equal(await page.locator(".sheet-line").count(), 2);
 });
 
 await check("編集画面はコードフォームとリズムパターンだけ", async () => {

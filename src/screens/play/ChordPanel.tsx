@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChordPalette } from "../../components/ChordPalette";
 import { FormAnalysisView } from "../../components/FormAnalysisView";
 import { PianoView } from "../../components/PianoView";
 import { TabView } from "../../components/TabView";
@@ -106,35 +107,6 @@ export function ChordPanel({ song, settings, chordId, onSongChange, onSelectChor
   );
 }
 
-const ROOTS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
-const QUALITIES: [suffix: string, label: string][] = [
-  ["", "メジャー"],
-  ["m", "m"],
-  ["7", "7"],
-  ["maj7", "maj7"],
-  ["m7", "m7"],
-  ["sus4", "sus4"],
-  ["add9", "add9"],
-  ["6", "6"],
-  ["dim", "dim"],
-  ["aug", "aug"],
-  ["m7b5", "m7♭5"],
-  ["dim7", "dim7"],
-  ["aug7", "aug7"],
-  ["9", "9"],
-  ["m9", "m9"],
-  ["maj9", "maj9"],
-  ["7b9", "7♭9"],
-  ["7#9", "7♯9"],
-  ["13", "13"],
-];
-
-/** "F#m7/E" → { root: "F#", suffix: "m7", bass: "/E" } */
-function splitName(name: string) {
-  const m = /^([A-G][#♯b♭]?)([^/]*)(\/.*)?$/.exec(name.trim());
-  return m ? { root: m[1], suffix: m[2], bass: m[3] ?? "" } : { root: "C", suffix: "", bass: "" };
-}
-
 function ChordEditor({
   song,
   settings,
@@ -172,7 +144,6 @@ function ChordEditor({
     if (n && n !== chord.chordName) rename(n);
     else setName(chord.chordName);
   };
-  const parts = splitName(chord.chordName);
   const resolved = resolveForm(song, chord);
   const beats = ticksToBeats(chord.durationTicks, ts);
   const add = (position: "before" | "after") => {
@@ -207,32 +178,7 @@ function ChordEditor({
           {!valid && <span className="warn small">解析できません（例: C, Am, G7, F#m, Bb, C/G）</span>}
         </div>
 
-        <div className="ce-palette" role="group" aria-label="ルート">
-          {ROOTS.map((r) => (
-            <button
-              key={r}
-              type="button"
-              className={`chip${parts.root === r ? " on" : ""}`}
-              aria-pressed={parts.root === r}
-              onClick={() => rename(r + parts.suffix + parts.bass)}
-            >
-              {r.replace("#", "♯").replace("b", "♭")}
-            </button>
-          ))}
-        </div>
-        <div className="ce-palette" role="group" aria-label="種類">
-          {QUALITIES.map(([suffix, text]) => (
-            <button
-              key={text}
-              type="button"
-              className={`chip${parts.suffix === suffix ? " on" : ""}`}
-              aria-pressed={parts.suffix === suffix}
-              onClick={() => rename(parts.root + suffix + parts.bass)}
-            >
-              {text}
-            </button>
-          ))}
-        </div>
+        <ChordPalette value={chord.chordName} onChange={rename} />
 
         <div className="btn-row">
           <span className="small">長さ</span>

@@ -11,6 +11,7 @@ import { SettingsPanel } from "../components/SettingsPanel";
 import { SongInfoForm } from "../components/SongInfoForm";
 import { ChordPanel } from "./play/ChordPanel";
 import { LyricsPanel } from "./play/LyricsPanel";
+import { LyricSheet } from "./play/LyricSheet";
 import { TabView } from "../components/TabView";
 import { sectionMeasureRows } from "../music/arrangement";
 import { formShorthand, soundingNotes } from "../music/chord";
@@ -35,13 +36,14 @@ type Props = {
   initialSongInfo?: boolean;
 };
 
-export type EditMode = "view" | "chord" | "rhythm" | "lyrics";
+export type EditMode = "view" | "chord" | "rhythm" | "lyrics" | "sheet";
 
 const EDIT_MODES: [EditMode, string][] = [
   ["view", "見る"],
   ["chord", "コード"],
   ["rhythm", "リズム"],
   ["lyrics", "歌詞"],
+  ["sheet", "歌詞シート"],
 ];
 
 export function PlayScreen({
@@ -267,6 +269,7 @@ export function PlayScreen({
             {editMode === "chord" && "コードをタップして編集"}
             {editMode === "rhythm" && "小節をタップして選択"}
             {editMode === "lyrics" && "コードをタップして歌詞を編集"}
+            {editMode === "sheet" && "歌詞の文字をタップしてコードを置く"}
             ・変更はすぐ保存されます
           </span>
         )}
@@ -276,11 +279,13 @@ export function PlayScreen({
           <SongInfoForm song={song} onChange={commit} />
         </div>
       )}
-      {(showSettings || settings.playView === "score") && (
+      {editMode !== "sheet" && (showSettings || settings.playView === "score") && (
         <SettingsPanel settings={settings} onChange={onSettingsChange} compact togglesOnly={!showSettings} />
       )}
 
-      {settings.playView === "score" ? (
+      {editMode === "sheet" ? (
+        <LyricSheet song={song} onSongChange={commit} startWithPaste={initialEditMode === "sheet"} />
+      ) : settings.playView === "score" ? (
         <ScoreView
           song={song}
           settings={settings}

@@ -1,0 +1,99 @@
+import { describe, expect, it } from "vitest";
+import { lyricsText } from "../../music/lyrics";
+import { createEmptySong, makeChord, makeSection } from "../factory";
+import { addEndMark, NO_CHORD, parsePastedLyrics, removeMark, setMark, sheetToSong, songToSheet } from "../lyricSheet";
+import { saveForm, setChordDuration } from "../songOps";
+import type { Song } from "../types";
+
+const summary = (s: Song) =>
+  s.sections.map((sec) => ({
+    name: sec.name,
+    chords: sec.chords.map((c) => `${c.chordName}:${lyricsText(c.lyrics)}${c.lineBreak ? "⏎" : ""}`),
+  }));
+
+function fromPaste(text: string): Song {
+  const base = { ...createEmptySong("t"), sections: [] };
+  return sheetToSong(base, parsePastedLyrics(text));
+}
+
+describe("歌詞の貼り付け", () => {
+  it("見出しはセクション名、空行は区切り、各行は N.C. で始まる", () => {
+    const s = fromPaste("[Aメロ]\nあさのひかり\nまどをたたく\n\nねむいめを\n【サビ】\nひかりのなかへ\n");
+    expect(summary(s)).toEqual([
+      { name: "Aメロ", chords: [`${NO_CHORD}:あさのひかり⏎`, `${NO_CHORD}:まどをたたく⏎`] },
+      { name: "セクション1", chords: [`${NO_CHORD}:ねむいめを⏎`] },
+      { name: "サビ", chords: [`${NO_CHORD}:ひかりのなかへ⏎`] },
+    ]);
+    expect(s.sections[0].chords[0].durationTicks).toBe(48);
+  });
+});
+
+describe("歌詞シートでコードを置く", () => {
+  const base = () => fromPaste("あさのひかり\nまどをたたく");
+
+  it("行頭の N.C. を C に、途中の「ひ」に G を置く", () => {
+    let s = base();
+    let sheet = songToSheet(s);
+    sheet = setMark(sheet, { section: 0, line: 0, at: 0 }, "C");
+    sheet = setMark(sheet, { section: 0, line: 0, at: 3 }, "G");
+    s = sheetToSong(s, sheet);
+    expect(summary(s)[0].chords).toEqual(["C:あさの", "G:ひかり⏎", `${NO_CHORD}:まどをたたく⏎`]);
+  });
+
+  it("シートと曲を行き来しても同じ（往復）", () => {
+    let s = base();
+    s = sheetToSong(s, setMark(songToSheet(s), { section: 0, line: 0, at: 3 }, "G"));
+    expect(sheetToSong(s, songToSheet(s))).toEqual(s);
+  });
+
+  it("名前を変えても元のコードを引き継ぐ（長さ・フォーム指定はそのまま、歌詞の位置も残る）", () => {
+    let s = base();
+    s = sheetToSong(s, setMark(songToSheet(s), { section: 0, line: 0, at: 0 }, "C"));
+    const c = s.sections[0].chords[0];
+    s = setChordDuration(s, c.id, 24);
+    s = saveForm(s, { chordName: "C", frets: [null, 3, 2, 0, 1, 0] }, { applyToAll: true }).song;
+    const ticks = s.sections[0].chords[0].lyrics.map((l) => l.startTick);
+    // 別の位置にコードを足す
+    s = sheetToSong(s, setMark(songToSheet(s), { section: 0, line: 1, at: 2 }, "Am"));
+    const c2 = s.sections[0].chords[0];
+    expect(c2.id).toBe(c.id);
+    expect(c2.durationTicks).toBe(24);
+    expect(c2.formId).toBeDefined();
+    expect(c2.lyrics.map((l) => l.startTick)).toEqual(ticks);
+    expect(summary(s)[0].chords).toEqual(["C:あさのひかり⏎", `${NO_CHORD}:まど`, "Am:をたたく⏎"]);
+  });
+
+  it("コードを取り除くと、その歌詞は前のコードの続きになる", () => {
+    let s = base();
+    let sheet = setMark(songToSheet(s), { section: 0, line: 0, at: 0 }, "C");
+    sheet = setMark(sheet, { section: 0, line: 0, at: 3 }, "G");
+    s = sheetToSong(s, sheet);
+    s = sheetToSong(s, removeMark(songToSheet(s), { section: 0, line: 0, at: 3 }));
+    expect(summary(s)[0].chords).toEqual(["C:あさのひかり⏎", `${NO_CHORD}:まどをたたく⏎`]);
+    // 2行目の行頭の N.C. を取ると、2行目の歌詞は1行目の C の続き
+    s = sheetToSong(s, removeMark(songToSheet(s), { section: 0, line: 1, at: 0 }));
+    expect(summary(s)[0].chords).toEqual(["C:あさのひかりまどをたたく⏎"]);
+  });
+
+  it("行末に歌詞のないコード（前奏など）を足せる", () => {
+    let s = base();
+    let sheet = setMark(songToSheet(s), { section: 0, line: 0, at: 0 }, "C");
+    sheet = addEndMark(sheet, { section: 0, line: 0 }, "F");
+    sheet = addEndMark(sheet, { section: 0, line: 0 }, "G");
+    s = sheetToSong(s, sheet);
+    expect(summary(s)[0].chords).toEqual(["C:あさのひかり", "F:", "G:⏎", `${NO_CHORD}:まどをたたく⏎`]);
+    // 往復しても行の構成が変わらない
+    expect(summary(sheetToSong(s, songToSheet(s)))).toEqual(summary(s));
+  });
+
+  it("既存の曲（改行の印なし）もシートで開ける（セクションごとに1行）", () => {
+    const s0 = createEmptySong("t");
+    const s = { ...s0, sections: [makeSection("A", [makeChord("C", 48, "あい"), makeChord("G", 48, "う")])] };
+    const sheet = songToSheet(s);
+    expect(sheet[0].lines).toHaveLength(1);
+    expect(sheet[0].lines[0].marks.map((mk) => [mk.at, mk.name])).toEqual([
+      [0, "C"],
+      [2, "G"],
+    ]);
+  });
+});
