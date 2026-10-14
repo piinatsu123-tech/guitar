@@ -2084,3 +2084,11 @@ input.narrow {
 .tab-view.compact .fret-num {
   font-size: 14px;
 }
+/* 歌詞のない位置にコードがいくつも並ぶとき、狭い画面では折り返す */
+.sheet-seg {
+  max-width: 100%;
+}
+.sheet-marks {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
