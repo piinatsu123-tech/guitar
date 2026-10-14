@@ -11,10 +11,14 @@ import {
   positionsFromFrets,
   soundingNotes,
 } from "../../music/chord";
+import { placementsOf, toggleNoteInForm } from "../../music/formEdit";
 import { DEFAULT_GENERATE_OPTIONS, generateForms, type GenerateOptions } from "../../music/formGenerator";
 import type { StringNumber } from "../../music/pitch";
 import { chordNamesInSong, clearForm, findChord, resolveForm, saveForm } from "../../model/songOps";
 import type { DisplaySettings, Song } from "../../model/types";
+
+/** 鍵盤で編集するときの表示範囲：C2〜B5（ギターの最低音 E2 から 1弦20フレット付近まで） */
+const PIANO_EDIT_RANGE = { low: 36, high: 83 };
 
 type Props = {
   song: Song;
@@ -134,6 +138,17 @@ function FormWorkbench({
     setString(s, cur === 0 ? null : 0); // 開放 ⇄ ミュート
   };
 
+  const pianoClick = (midi: number) => {
+    const next = toggleNoteInForm(frets, midi);
+    if (!next) return;
+    setFrets(next);
+    setMessage(null);
+    // 新しく押さえた位置が表示範囲の外なら、見える位置へ動かす
+    const pressed = next.filter((f): f is number => f !== null && f > 0);
+    if (pressed.some((f) => f < viewStart || f > viewStart + 6))
+      setViewStart(displayStartFret(positionsFromFrets(next), 7));
+  };
+
   const save = () => {
     if (
       !analysis.valid &&
@@ -218,7 +233,17 @@ function FormWorkbench({
             );
           })}
         </div>
-        <PianoView notes={soundingNotes(positions)} labelMode={settings.pianoLabelMode} rootPc={rootPc} />
+        <p className="muted small">
+          鍵盤をタップしても編集できます。鳴っていない音をタップすると押さえやすい弦・フレットに加わり、鳴っている音をタップするとその弦がミュートになります。
+        </p>
+        <PianoView
+          notes={soundingNotes(positions)}
+          labelMode={settings.pianoLabelMode}
+          rootPc={rootPc}
+          range={PIANO_EDIT_RANGE}
+          isPlayable={(m) => placementsOf(m).length > 0}
+          onKeyClick={pianoClick}
+        />
         <div className="btn-row end">
           {resolved.source === "saved" && (
             <button

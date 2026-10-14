@@ -809,6 +809,27 @@ input.narrow {
 .key-black.on {
   fill: var(--key-on-black);
 }
+.key-white.clickable,
+.key-black.clickable {
+  cursor: pointer;
+}
+.key-white.clickable:hover:not(.on) {
+  fill: color-mix(in srgb, var(--primary) 18%, var(--key-white));
+}
+.key-black.clickable:hover:not(.on) {
+  fill: color-mix(in srgb, var(--primary) 45%, var(--key-black));
+}
+.key-white.unplayable {
+  fill: color-mix(in srgb, var(--muted) 30%, var(--key-white));
+}
+.piano-view.editable {
+  max-width: none !important;
+}
+.piano-view rect:focus-visible {
+  outline: none;
+  stroke: var(--primary);
+  stroke-width: 2;
+}
 .key-marker {
   fill: #1f2328;
   stroke: #fff;

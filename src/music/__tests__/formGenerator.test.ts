@@ -65,4 +65,22 @@ describe("コードフォームの自動生成", () => {
     expect(estimateFingering([1, 3, 3, 2, 1, 1])).toEqual({ fingers: 4, barre: 1 });
     expect(estimateFingering([null, 3, 2, 0, 1, 0])).toEqual({ fingers: 3, barre: null });
   });
+
+  it("パワーコード（5）：ルートと5度だけ、低音弦の定番の形が上位", () => {
+    expect(shorthands("E5")[0]).toBe("022xxx");
+    expect(shorthands("A5")[0]).toBe("x022xx");
+    expect(shorthands("F5")[0]).toBe("133xxx");
+    expect(shorthands("B5")[0]).toBe("x244xx");
+    expect(shorthands("C5", { maxResults: 3 })).toContain("x355xx");
+    for (const name of ["C5", "D5", "G5", "Bb5", "F#5"]) {
+      const forms = generateForms(name);
+      expect(forms.length).toBeGreaterThan(0);
+      for (const f of forms) {
+        expect(analyzeForm(name, f.positions).valid).toBe(true);
+        // 鳴らす弦が隣り合っている
+        const idx = f.frets.map((x, i) => (x === null ? -1 : i)).filter((i) => i >= 0);
+        expect(idx[idx.length - 1] - idx[0] + 1).toBe(idx.length);
+      }
+    }
+  });
 });

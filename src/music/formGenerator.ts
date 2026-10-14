@@ -56,6 +56,7 @@ function scoreCandidate(
   missingOptional: number,
   fingers: number,
   barre: number | null,
+  power = false,
 ): number {
   let score = 0;
   const fretted = frets.filter((f): f is number => f !== null && f > 0);
@@ -74,11 +75,16 @@ function scoreCandidate(
   // 開放弦を使う自然なフォームを優先
   score -= opens * 0.4;
   // 鳴る弦が多いほどストロークしやすい
-  score -= sounding * 0.5;
+  if (!power) score -= sounding * 0.5;
   // 弦の途中のミュートは難しい
   const firstSounding = frets.findIndex((f) => f !== null);
   const interiorMutes = frets.slice(firstSounding).filter((f) => f === null).length;
-  score += interiorMutes * 3.5 + mutes * 0.3;
+  if (power) {
+    // パワーコード：隣り合う2〜3本（ルート・5度・オクターブ上のルート）で、ルートを6弦か5弦に置く形が定番
+    score += Math.abs(sounding - 3) * 1.2 + firstSounding * 1.5;
+  } else {
+    score += interiorMutes * 3.5 + mutes * 0.3;
+  }
   // 高いフレットを押さえながら、その間の弦を開放で鳴らすフォームは手が広がりにくい
   if (maxF >= 4) {
     const lastSounding = frets.length - 1 - [...frets].reverse().findIndex((f) => f !== null && f > 0);
@@ -103,6 +109,7 @@ export function generateForms(chordName: string, options: Partial<GenerateOption
   const opts = { ...DEFAULT_GENERATE_OPTIONS, ...options };
   const chord = parseChord(chordName);
   if (!chord) return [];
+  const power = chord.chordPcs.length <= 2;
   const minFret = Math.max(0, Math.floor(opts.minFret));
   const maxFret = Math.max(minFret, Math.floor(opts.maxFret));
 
@@ -142,11 +149,17 @@ export function generateForms(chordName: string, options: Partial<GenerateOption
     if (seen.has(key)) return;
     seen.add(key);
     const sounding = frets.filter((f) => f !== null).length;
-    if (sounding < MIN_SOUNDING) return;
-    // ミュートは低音側に寄せ、それ以外（途中・1弦側）のミュートは1本まで
+    if (sounding < (power ? 2 : MIN_SOUNDING)) return;
     const firstSounding = frets.findIndex((f) => f !== null);
-    const interior = frets.slice(firstSounding).filter((f) => f === null).length;
-    if (interior > 1) return;
+    if (power) {
+      // パワーコード：鳴らす弦が隣り合ってひとまとまり（低音側・高音側のミュートは何本でもよい）
+      const lastSounding = 5 - [...frets].reverse().findIndex((f) => f !== null);
+      if (frets.slice(firstSounding, lastSounding + 1).some((f) => f === null)) return;
+    } else {
+      // ミュートは低音側に寄せ、それ以外（途中・1弦側）のミュートは1本まで
+      const interior = frets.slice(firstSounding).filter((f) => f === null).length;
+      if (interior > 1) return;
+    }
     const fretted = frets.filter((f): f is number => f !== null && f > 0);
     if (fretted.length && Math.max(...fretted) - Math.min(...fretted) > MAX_SPAN) return;
     const positions = positionsFromFrets(frets);
@@ -154,7 +167,7 @@ export function generateForms(chordName: string, options: Partial<GenerateOption
     if (!analysis.valid) return;
     const { fingers, barre } = estimateFingering(frets);
     if (fingers > 4) return;
-    const score = scoreCandidate(frets, chord!.root, analysis.missingOptional.length, fingers, barre);
+    const score = scoreCandidate(frets, chord!.root, analysis.missingOptional.length, fingers, barre, power);
     results.push({
       frets,
       positions,

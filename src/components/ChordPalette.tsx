@@ -12,6 +12,7 @@ export const QUALITIES: [suffix: string, label: string][] = [
   ["dim", "dim"],
   ["aug", "aug"],
   ["m7b5", "m7♭5"],
+  ["5", "5（パワー）"],
   ["dim7", "dim7"],
   ["aug7", "aug7"],
   ["9", "9"],

@@ -16,6 +16,8 @@ export type ChordQuality = {
 
 export const CHORD_QUALITIES: ChordQuality[] = [
   { id: "major", suffixes: ["", "M", "maj"], label: "メジャー", intervals: [0, 4, 7], optional: [] },
+  // パワーコード（ルート＋5度。3度がないので長調・短調どちらにも使える）
+  { id: "5", suffixes: ["5", "power"], label: "パワーコード", intervals: [0, 7], optional: [] },
   { id: "minor", suffixes: ["m", "min", "-"], label: "マイナー", intervals: [0, 3, 7], optional: [] },
   { id: "7", suffixes: ["7", "dom7"], label: "セブンス", intervals: [0, 4, 7, 10], optional: [7] },
   {
@@ -186,6 +188,11 @@ export function analyzeForm(chordName: string, positions: GuitarStringPosition[]
     bassOk,
     rootCount,
     unisonDuplicates,
-    valid: notes.length >= 3 && missingRequired.length === 0 && nonChordTones.length === 0 && bassOk,
+    // 2音のコード（パワーコード）は2本からでよい。それ以外は3本以上
+    valid:
+      notes.length >= (chord.chordPcs.length <= 2 ? 2 : 3) &&
+      missingRequired.length === 0 &&
+      nonChordTones.length === 0 &&
+      bassOk,
   };
 }

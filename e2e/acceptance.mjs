@@ -817,6 +817,34 @@ await check("数値の入力: テンポ・拍子・コードの長さを1文字�
   await editMode("見る");
 });
 
+await check("パワーコード（5）を一覧から選べて、鍵盤をタップしてフォームを編集できる", async () => {
+  await editMode("コード");
+  await scoreSlot(1).click();
+  await page.getByRole("tab", { name: /コード「/ }).click();
+  await page.getByRole("group", { name: "ルート" }).getByRole("button", { name: "E", exact: true }).click();
+  await page.getByRole("group", { name: "種類" }).getByRole("button", { name: "5（パワー）" }).click();
+  assert.match(await page.locator(".ce-preview .analysis").textContent(), /✓ E5（パワーコード）/);
+  await page.locator(".ce-preview").getByRole("button", { name: "フォームを編集" }).click();
+  const fret = (s) => page.getByLabel(`${s}弦のフレット（x でミュート）`).inputValue();
+  const frets = async () => Promise.all([6, 5, 4, 3, 2, 1].map(fret));
+  assert.deepEqual(await frets(), ["0", "2", "2", "x", "x", "x"]);
+  // 鳴っていない E4 をタップ → 空いている1弦の開放で加わる
+  await page.getByRole("button", { name: "鍵盤 E4" }).click();
+  assert.deepEqual(await frets(), ["0", "2", "2", "x", "x", "0"]);
+  assert.match(await page.locator(".form-editor .analysis").first().textContent(), /✓ E5/);
+  // 鳴っている B2（5弦2F）をタップ → その弦がミュート
+  assert.equal(await page.getByRole("button", { name: "鍵盤 B2" }).getAttribute("aria-pressed"), "true");
+  await page.getByRole("button", { name: "鍵盤 B2" }).click();
+  assert.deepEqual(await frets(), ["0", "x", "2", "x", "x", "0"]);
+  // G♯3 を加えると3度が入るのでパワーコードではなくなる
+  await page.getByRole("button", { name: "鍵盤 G♯3" }).click();
+  assert.match(await page.locator(".form-editor .analysis").first().textContent(), /⚠/);
+  // 鍵盤 D2 はギターで鳴らせないのでボタンにならない
+  assert.equal(await page.getByRole("button", { name: "鍵盤 D2" }).count(), 0);
+  await page.getByRole("button", { name: "‹ 演奏画面" }).click();
+  await editMode("見る");
+});
+
 await check("ページエラーなし", async () => {
   assert.deepEqual(pageErrors, []);
 });

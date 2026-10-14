@@ -56,6 +56,8 @@ describe("そのほかのテンション・変化音", () => {
     ["CmM7", [0, 3, 7, 11]],
     ["Cm(maj7)", [0, 3, 7, 11]],
     ["CΔ7", [0, 4, 7, 11]],
+    ["C5", [0, 7]],
+    ["F#5", [6, 1]],
   ])("%s", (name, expected) => {
     expect(pcs(name)).toEqual(sorted(expected));
   });

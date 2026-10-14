@@ -5,6 +5,12 @@ type Props = {
   notes: SoundingNote[];
   labelMode: NoteLabelMode;
   rootPc?: number | null;
+  /** 指定すると鍵盤をタップできる（フォームの編集用） */
+  onKeyClick?: (midi: number) => void;
+  /** 表示範囲を固定する（省略時は発音する音に合わせる） */
+  range?: { low: number; high: number };
+  /** タップできる鍵盤（ギターで鳴らせる音）。省略時はすべて */
+  isPlayable?: (midi: number) => boolean;
 };
 
 const STRING_GLYPH = ["", "①", "②", "③", "④", "⑤", "⑥"];
@@ -24,8 +30,8 @@ export function keyboardRange(notes: SoundingNote[]): { low: number; high: numbe
   return { low, high };
 }
 
-export function PianoView({ notes, labelMode, rootPc = null }: Props) {
-  const { low, high } = keyboardRange(notes);
+export function PianoView({ notes, labelMode, rootPc = null, onKeyClick, range, isPlayable }: Props) {
+  const { low, high } = range ?? keyboardRange(notes);
   // 同じ音高を複数の弦で鳴らしていても鍵盤は1つ。弦との対応は保持して表示する。
   const byMidi = new Map<number, SoundingNote[]>();
   for (const n of notes) byMidi.set(n.midi, [...(byMidi.get(n.midi) ?? []), n]);
@@ -55,7 +61,8 @@ export function PianoView({ notes, labelMode, rootPc = null }: Props) {
   const keyClass = (midi: number, black: boolean) => {
     const on = byMidi.has(midi);
     const root = on && rootPc !== null && pitchClass(midi) === rootPc;
-    return `${black ? "key-black" : "key-white"}${on ? " on" : ""}${root ? " root" : ""}`;
+    const off = onKeyClick && isPlayable && !isPlayable(midi);
+    return `${black ? "key-black" : "key-white"}${on ? " on" : ""}${root ? " root" : ""}${onKeyClick && !off ? " clickable" : ""}${off ? " unplayable" : ""}`;
   };
 
   const marker = (k: { midi: number; x: number; black: boolean }) => {
@@ -85,20 +92,46 @@ export function PianoView({ notes, labelMode, rootPc = null }: Props) {
     );
   };
 
+  const keyRect = (k: { midi: number; x: number; black: boolean }) => {
+    const common = {
+      key: k.midi,
+      x: k.x,
+      y: 0,
+      width: k.black ? blackW : whiteW,
+      height: k.black ? blackH : whiteH,
+      rx: k.black ? 1.5 : 2,
+      className: keyClass(k.midi, k.black),
+    };
+    if (!onKeyClick || (isPlayable && !isPlayable(k.midi))) return <rect {...common} />;
+    const name = noteNameWithOctave(k.midi, "abc");
+    return (
+      <rect
+        {...common}
+        role="button"
+        tabIndex={0}
+        aria-label={`鍵盤 ${name}`}
+        aria-pressed={byMidi.has(k.midi)}
+        onClick={() => onKeyClick(k.midi)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onKeyClick(k.midi);
+          }
+        }}
+      />
+    );
+  };
+
   return (
     <svg
-      className="piano-view"
+      className={`piano-view${onKeyClick ? " editable" : ""}`}
       viewBox={`0 0 ${width} ${height}`}
-      role="img"
+      role={onKeyClick ? "group" : "img"}
       aria-label={`ピアノ鍵盤: ${description}`}
       style={{ maxWidth: whites.length * 32 }}
     >
-      {whites.map((k) => (
-        <rect key={k.midi} x={k.x} y={0} width={whiteW} height={whiteH} rx={2} className={keyClass(k.midi, false)} />
-      ))}
-      {blacks.map((k) => (
-        <rect key={k.midi} x={k.x} y={0} width={blackW} height={blackH} rx={1.5} className={keyClass(k.midi, true)} />
-      ))}
+      {whites.map((k) => keyRect(k))}
+      {blacks.map((k) => keyRect(k))}
       {/* オクターブの目印（C の位置） */}
       {labelMode !== "hidden" &&
         whites
