@@ -3,7 +3,7 @@
 //   曲 → シート : songToSheet（コードの歌詞を行につなげ、コードの位置に印を置く）
 //   シート → 曲 : sheetToSong（印ごとにコードを作る。元のコードは ID で引き継ぎ、長さ・フォーム・リズムを残す）
 // まだコードを置いていない歌詞は「N.C.（コードなし）」のコードが持つ。
-import { lyricsText, reconcileLyrics, splitGraphemes } from "../music/lyrics";
+import { reconcileLyrics, sortLyrics, splitGraphemes } from "../music/lyrics";
 import { SIXTEENTH, ticksPerMeasure } from "../music/timeline";
 import { makeChord, newId } from "./factory";
 import { pruneForms } from "./songOps";
@@ -18,7 +18,13 @@ export type SheetMark = {
   chordId?: string;
 };
 /** bars: 小節の区切り（何文字目から新しい小節か。行頭は常に小節の頭なので含めない） */
-export type SheetLine = { chars: string[]; marks: SheetMark[]; bars?: number[] };
+export type SheetLine = {
+  chars: string[];
+  marks: SheetMark[];
+  bars?: number[];
+  /** 各文字がどのコードのどの歌詞か（アクセントの付け外しに使う。曲から作ったときだけある） */
+  refs?: { chordId: string; lyricId: string; accent: boolean }[];
+};
 export type SheetSection = { id?: string; name: string; lines: SheetLine[] };
 export type Sheet = SheetSection[];
 /**
@@ -36,13 +42,17 @@ export function marksAt(sheet: Sheet, pos: Omit<SheetPos, "k">): SheetMark[] {
 export function songToSheet(song: Song): Sheet {
   return song.sections.map((section) => {
     const lines: SheetLine[] = [];
-    let cur: SheetLine = { chars: [], marks: [] };
+    let cur: SheetLine = { chars: [], marks: [], refs: [] };
     for (const chord of section.chords) {
       cur.marks.push({ at: cur.chars.length, name: chord.chordName, chordId: chord.id });
-      cur.chars.push(...splitGraphemes(lyricsText(chord.lyrics)));
+      for (const e of sortLyrics(chord.lyrics))
+        for (const ch of splitGraphemes(e.text)) {
+          cur.chars.push(ch);
+          cur.refs!.push({ chordId: chord.id, lyricId: e.id, accent: e.accentMarked });
+        }
       if (chord.lineBreak) {
         lines.push(cur);
-        cur = { chars: [], marks: [] };
+        cur = { chars: [], marks: [], refs: [] };
       }
     }
     if (cur.marks.length || cur.chars.length || lines.length === 0) lines.push(cur);
@@ -54,7 +64,8 @@ export function songToSheet(song: Song): Sheet {
   });
 }
 
-type Entry = { mark: SheetMark; text: string; lineBreak: boolean };
+/** accents: 文字ごとのアクセント（シートが曲から作られ、文字が変わっていないときだけ分かる） */
+type Entry = { mark: SheetMark; text: string; lineBreak: boolean; accents?: (boolean | undefined)[] };
 
 /**
  * 歌詞シートを曲に反映する。
@@ -70,29 +81,55 @@ export function sheetToSong(song: Song, sheet: Sheet): Song {
     const entries: Entry[] = [];
     for (const line of ss.lines) {
       const marks = [...line.marks].sort((a, b) => a.at - b.at);
-      const lead = line.chars.slice(0, marks[0]?.at ?? line.chars.length).join("");
+      const refs = line.refs && line.refs.length === line.chars.length ? line.refs : undefined;
+      const accentsOf = (a: number, b: number) =>
+        refs ? refs.slice(a, b).map((r) => r.accent) : Array.from({ length: b - a }, () => undefined);
+      const leadEnd = marks[0]?.at ?? line.chars.length;
+      const lead = line.chars.slice(0, leadEnd).join("");
       if (lead) {
         const prev = entries[entries.length - 1];
-        if (prev) prev.text += lead;
-        else entries.push({ mark: { at: 0, name: NO_CHORD }, text: lead, lineBreak: false });
+        if (prev) {
+          prev.text += lead;
+          prev.accents = [...(prev.accents ?? []), ...accentsOf(0, leadEnd)];
+        } else
+          entries.push({
+            mark: { at: 0, name: NO_CHORD },
+            text: lead,
+            lineBreak: false,
+            accents: accentsOf(0, leadEnd),
+          });
       }
       marks.forEach((mark, i) => {
         const end = marks[i + 1]?.at ?? line.chars.length;
-        entries.push({ mark, text: line.chars.slice(mark.at, end).join(""), lineBreak: false });
+        entries.push({
+          mark,
+          text: line.chars.slice(mark.at, end).join(""),
+          lineBreak: false,
+          accents: accentsOf(mark.at, end),
+        });
       });
       const last = entries[entries.length - 1];
       if (last) last.lineBreak = true;
     }
-    const chords = entries.map(({ mark, text, lineBreak }) => {
+    // 文字ごとのアクセントが分かっていれば、コードが分かれたり移ったりしても付け直す
+    const withAccents = (lyrics: ChordEvent["lyrics"], accents?: (boolean | undefined)[]) => {
+      const sorted = sortLyrics(lyrics);
+      if (!accents || accents.length !== sorted.length) return lyrics;
+      return sorted.map((l, i) =>
+        accents[i] === undefined || accents[i] === l.accentMarked ? l : { ...l, accentMarked: accents[i]! },
+      );
+    };
+    const chords = entries.map(({ mark, text, lineBreak, accents }) => {
       const old = mark.chordId ? byId.get(mark.chordId) : undefined;
       if (!old) {
-        return { ...makeChord(mark.name, m, text), lineBreak: lineBreak || undefined };
+        const c = makeChord(mark.name, m, text);
+        return { ...c, lyrics: withAccents(c.lyrics, accents), lineBreak: lineBreak || undefined };
       }
       return {
         ...old,
         chordName: mark.name,
         formId: old.chordName === mark.name ? old.formId : undefined,
-        lyrics: reconcileLyrics(old.lyrics, text, old.durationTicks, SIXTEENTH, newId),
+        lyrics: withAccents(reconcileLyrics(old.lyrics, text, old.durationTicks, SIXTEENTH, newId), accents),
         lineBreak: lineBreak || undefined,
       };
     });

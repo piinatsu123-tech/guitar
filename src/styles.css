@@ -2092,3 +2092,28 @@ input.narrow {
   flex-wrap: wrap;
   row-gap: 4px;
 }
+
+/* 歌詞の「ここで弾く」アクセント（見るときに文字をタップ） */
+.lyric-sheet:not(.editing) button.sheet-cell {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.sheet-cell.accent .sheet-char {
+  color: var(--accent);
+  text-decoration: underline 4px var(--accent);
+  text-underline-offset: 5px;
+}
+.sheet-cell.accent::after {
+  content: "▼";
+  position: absolute;
+  top: -0.9em;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  color: var(--accent);
+}
+.sheet-cell.accent {
+  position: relative;
+}

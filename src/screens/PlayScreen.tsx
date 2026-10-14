@@ -207,6 +207,14 @@ export function PlayScreen({
             />
             開放弦の音名
           </label>
+          <label className="toggle-inline">
+            <input
+              type="checkbox"
+              checked={settings.showRhythm}
+              onChange={(e) => onSettingsChange({ ...settings, showRhythm: e.target.checked })}
+            />
+            リズム譜
+          </label>
           <span className="small">コード図の音名</span>
           <div className="segmented" role="radiogroup" aria-label="コード図の音名">
             {LABEL_MODES.map(([v, label]) => (

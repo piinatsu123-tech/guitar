@@ -117,8 +117,6 @@ await check("演奏画面: 歌詞の上にコード名とコード図（Aメロ 
     .locator(".tab-view")
     .getAttribute("aria-label");
   assert.ok(describes(g, [3, 2, 0, 0, 0, 3]), g);
-  // 見るだけのときは文字はボタンではない（誤タップで変わらない）
-  assert.equal(await section("Aメロ").getByRole("button", { name: /^「/ }).count(), 0);
   // 古い譜面表示はない
   assert.equal(await page.locator(".score, .progression, .tl-diagram").count(), 0);
 });
@@ -141,6 +139,53 @@ await check("表示: 開放弦の音名をオフにできる（既定はオン�
   assert.equal(await page.locator(".sheet-diagram .open-name").count(), 0);
   await page.getByLabel("開放弦の音名").check();
   await page.getByRole("button", { name: "表示" }).click();
+});
+
+await check(
+  "歌詞のアクセント: 見るときに文字をタップで「ここで弾く」印、もう一度で外れる（再読み込み後も残る）",
+  async () => {
+    const hi = () =>
+      section("Aメロ")
+        .getByRole("button", { name: /^「ひ」/ })
+        .first();
+    const marks = () => section("Aメロ").locator(".sheet-cell.accent").count();
+    const before = await marks(); // サンプル曲は各コードの最初の文字に印がある
+    assert.ok(before > 0);
+    assert.equal(await hi().getAttribute("aria-pressed"), "false");
+    await hi().click();
+    assert.equal(await hi().getAttribute("aria-pressed"), "true");
+    assert.equal(await marks(), before + 1);
+    await page.reload();
+    assert.equal(await hi().getAttribute("aria-pressed"), "true");
+    // コードを置いても印は残る
+    await startEdit();
+    await cell("Aメロ", "ひ").click();
+    await panel()
+      .getByRole("group", { name: "この曲のコード" })
+      .getByRole("button", { name: "Am", exact: true })
+      .click();
+    await panel().getByRole("button", { name: "取り除く" }).click();
+    await endEdit();
+    assert.equal(await hi().getAttribute("aria-pressed"), "true");
+    await hi().click();
+    assert.equal(await marks(), before);
+  },
+);
+
+await check("表示: リズム譜をオフにすると行の下のリズム譜が消える（編集中は出る）", async () => {
+  assert.equal(await page.getByRole("region", { name: "Aメロ 1行目のリズム" }).count(), 1);
+  await page.getByRole("button", { name: "表示" }).click();
+  await page.getByLabel("リズム譜", { exact: true }).uncheck();
+  assert.equal(await page.locator(".rhythm-staff").count(), 0);
+  await page.reload();
+  assert.equal(await page.locator(".rhythm-staff").count(), 0);
+  await startEdit();
+  assert.equal(await page.getByRole("region", { name: "Aメロ 1行目のリズム" }).count(), 1);
+  await endEdit();
+  await page.getByRole("button", { name: "表示" }).click();
+  await page.getByLabel("リズム譜", { exact: true }).check();
+  await page.getByRole("button", { name: "表示" }).click();
+  assert.equal(await page.getByRole("region", { name: "Aメロ 1行目のリズム" }).count(), 1);
 });
 
 await check("表示: コード図をオフにすると名前だけ。再読み込み後も維持", async () => {

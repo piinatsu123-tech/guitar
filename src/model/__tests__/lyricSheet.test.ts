@@ -14,7 +14,7 @@ import {
   songToSheet,
   type Sheet,
 } from "../lyricSheet";
-import { saveForm, setChordDuration } from "../songOps";
+import { saveForm, setChordDuration, toggleLyricAccent } from "../songOps";
 import type { Song } from "../types";
 
 const summary = (s: Song) =>
@@ -203,5 +203,22 @@ describe("小節の区切り（歌詞の行の中）", () => {
     expect(songToSheet(s)[0].lines[0].bars).toEqual([3]);
     s = sheetToSong(s, setLineText(songToSheet(s), { section: 0, line: 0 }, "あさのまぶしいひかり"));
     expect(songToSheet(s)[0].lines[0].bars).toEqual([7]);
+  });
+});
+
+describe("歌詞のアクセント（ここで弾く印）", () => {
+  it("文字ごとにコードと歌詞を指し、付けた印はコードを置いても行を直しても残る", () => {
+    let s = fromPaste("[A]\nあさのひかり");
+    const ref = songToSheet(s)[0].lines[0].refs![3]; // 「ひ」
+    s = toggleLyricAccent(s, ref.chordId, ref.lyricId);
+    expect(songToSheet(s)[0].lines[0].refs!.map((r) => r.accent)).toEqual([false, false, false, true, false, false]);
+    s = sheetToSong(s, setMark(songToSheet(s), { section: 0, line: 0, at: 3 }, "G"));
+    expect(songToSheet(s)[0].lines[0].refs!.map((r) => r.accent)).toEqual([false, false, false, true, false, false]);
+    s = sheetToSong(s, setLineText(songToSheet(s), { section: 0, line: 0 }, "あさのまぶしいひかり"));
+    expect(songToSheet(s)[0].lines[0].refs!.findIndex((r) => r.accent)).toBe(7);
+    // もう一度で外れる
+    const r2 = songToSheet(s)[0].lines[0].refs![7];
+    s = toggleLyricAccent(s, r2.chordId, r2.lyricId);
+    expect(songToSheet(s)[0].lines[0].refs!.some((r) => r.accent)).toBe(false);
   });
 });

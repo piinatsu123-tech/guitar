@@ -17,7 +17,7 @@ import {
   type SheetLine,
   type SheetPos,
 } from "../../model/lyricSheet";
-import { chordNamesInSong, resolveForm } from "../../model/songOps";
+import { chordNamesInSong, resolveForm, toggleLyricAccent } from "../../model/songOps";
 import type { ChordEvent, DisplaySettings, Song } from "../../model/types";
 import { parseChord, soundingNotes, type SoundingNote } from "../../music/chord";
 import { LineRhythmBlock } from "./LineRhythmBlock";
@@ -251,12 +251,28 @@ export function LyricSheet({
                         const playingHere =
                           !!playhead && playhead.section === si && playhead.line === li && playhead.bar === barIndex;
                         const cls = `sheet-cell${ch === null ? " end" : ""}${isSel(at) ? " selected" : ""}${barStart ? " bar-start" : ""}${playingHere ? " playing-bar" : ""}`;
-                        if (!editing)
+                        if (!editing) {
+                          // 見るときは文字をタップで「ここで弾く」アクセントを付け外し
+                          const ref = ch !== null ? ln.refs?.[at] : undefined;
+                          if (!ref)
+                            return (
+                              <span key={at} className={cls}>
+                                <span className="sheet-char">{ch ?? ""}</span>
+                              </span>
+                            );
                           return (
-                            <span key={at} className={cls}>
-                              <span className="sheet-char">{ch ?? ""}</span>
-                            </span>
+                            <button
+                              key={at}
+                              type="button"
+                              className={`${cls}${ref.accent ? " accent" : ""}`}
+                              aria-pressed={ref.accent}
+                              aria-label={`「${ch}」${ref.accent ? "ここで弾く印あり" : ""}`}
+                              onClick={() => onSongChange(toggleLyricAccent(song, ref.chordId, ref.lyricId))}
+                            >
+                              <span className="sheet-char">{ch}</span>
+                            </button>
                           );
+                        }
                         const names = ln.marks.filter((mk) => mk.at === at).map((mk) => mk.name);
                         return (
                           <button
@@ -315,7 +331,7 @@ export function LyricSheet({
               >
                 {renderLine(ln, li)}
                 {/* リズム譜は行の下に置く（コードとは連動しない） */}
-                {sec && (
+                {sec && (editing || settings.showRhythm) && (
                   <LineRhythmBlock
                     song={song}
                     section={sec}

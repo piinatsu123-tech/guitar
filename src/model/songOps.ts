@@ -2,7 +2,7 @@
 // 画面側は直接オブジェクトを書き換えずにここを通す。
 import { analyzeForm, positionsFromFrets, type ChordForm, type FormAnalysis } from "../music/chord";
 import { generateForms } from "../music/formGenerator";
-import { clampLyrics } from "../music/lyrics";
+import { clampLyrics, toggleAccent } from "../music/lyrics";
 import { SIXTEENTH, tilePattern } from "../music/timeline";
 import { makeChord, makeSection, newId } from "./factory";
 import type { ChordEvent, RhythmEvent, RhythmPattern, Section, SectionRhythm, Song } from "./types";
@@ -241,6 +241,11 @@ export function setMeasureRhythm(
     next.sort((a, b) => a.measure - b.measure);
     return { ...s, measureRhythms: next.length ? next : undefined };
   });
+}
+
+/** 歌詞の1文字の「ここで弾く」アクセントを付ける／外す */
+export function toggleLyricAccent(song: Song, chordId: string, lyricId: string): Song {
+  return updateChord(song, chordId, (c) => ({ ...c, lyrics: toggleAccent(c.lyrics, lyricId) }));
 }
 
 /** パターンを bars 小節ぶん敷き詰めたリズム譜（パターンが小節より短ければくり返し、長ければ切る） */
