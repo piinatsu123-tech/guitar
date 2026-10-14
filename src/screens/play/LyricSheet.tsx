@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChordPalette } from "../../components/ChordPalette";
 import {
+  marksAt,
   NO_CHORD,
   parsePastedLyrics,
   removeMark,
@@ -32,21 +33,25 @@ export function LyricSheet({ song, onSongChange, startWithPaste = false }: Props
   const [typed, setTyped] = useState("");
 
   const line = pos ? sheet[pos.section]?.lines[pos.line] : undefined;
-  const markHere = line?.marks.find((mk) => mk.at === pos!.at);
+  // 歌詞のないコードが続くと同じ位置に複数重なる。k 番目を編集対象にする（k = 数なら新しく足す）
+  const here = pos ? marksAt(sheet, pos) : [];
+  const k = Math.min(pos?.k ?? 0, here.length);
+  const markHere = here[k];
   const usedChords = chordNamesInSong(song).filter((n) => n !== NO_CHORD);
 
   const place = (name: string) => {
     if (!pos || !name.trim()) return;
-    onSongChange(sheetToSong(song, setMark(sheet, pos, name.trim())));
+    onSongChange(sheetToSong(song, setMark(sheet, { ...pos, k }, name.trim())));
   };
   const remove = () => {
-    if (!pos) return;
-    onSongChange(sheetToSong(song, removeMark(sheet, pos)));
+    if (!pos || !markHere) return;
+    onSongChange(sheetToSong(song, removeMark(sheet, { ...pos, k })));
+    setPos({ ...pos, k: Math.max(0, Math.min(k, here.length - 2)) });
   };
   const step = (delta: number) => {
     if (!pos || !line) return;
     const at = Math.min(line.chars.length, Math.max(0, pos.at + delta));
-    setPos({ ...pos, at });
+    setPos({ ...pos, at, k: 0 });
   };
 
   const applyPaste = () => {
@@ -106,7 +111,7 @@ export function LyricSheet({ song, onSongChange, startWithPaste = false }: Props
                     type="button"
                     className={`sheet-cell${ch === null ? " end" : ""}${selected ? " selected" : ""}${names.length ? " has-chord" : ""}`}
                     onClick={() => {
-                      setPos({ section: si, line: li, at });
+                      setPos({ section: si, line: li, at, k: 0 });
                       setTyped("");
                     }}
                     aria-label={`${ch === null ? "行末" : `「${ch}」`}${names.length ? `（${names.join("・")}）` : ""}`}
@@ -135,13 +140,39 @@ export function LyricSheet({ song, onSongChange, startWithPaste = false }: Props
             </button>
             {markHere && (
               <button type="button" className="small-btn danger" onClick={remove}>
-                取り除く
+                {here.length > 1 ? `「${markHere.name}」を取り除く` : "取り除く"}
               </button>
             )}
             <button type="button" className="small-btn" onClick={() => setPos(null)}>
               閉じる
             </button>
           </div>
+          {here.length > 0 && (
+            <div className="btn-row" role="radiogroup" aria-label="この位置のコード">
+              <span className="muted small">この位置のコード:</span>
+              {here.map((mk, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  role="radio"
+                  aria-checked={i === k}
+                  className={`chip${i === k ? " on" : ""}`}
+                  onClick={() => setPos({ ...pos, k: i })}
+                >
+                  {mk.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={k === here.length}
+                className={`chip${k === here.length ? " on" : ""}`}
+                onClick={() => setPos({ ...pos, k: here.length })}
+              >
+                ＋ もう1つ足す
+              </button>
+            </div>
+          )}
           {usedChords.length > 0 && (
             <div className="ce-palette" role="group" aria-label="この曲のコード">
               {usedChords.map((n) => (

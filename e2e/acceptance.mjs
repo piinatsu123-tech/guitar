@@ -772,6 +772,29 @@ await check("歌詞から作る: 貼り付けた歌詞の文字にコードを�
   await page.reload();
   await editMode("歌詞シート");
   assert.equal(await page.locator(".sheet-line").count(), 2);
+  // 行末に歌詞のないコードを2つ重ねて置き、1つだけ取り除く（以前はその位置のコードがすべて消えた）
+  const names = () => page.locator(".score .tl-diagram:not(.continued) .tl-diagram-name").allTextContents();
+  await editMode("見る");
+  const before = await names();
+  await editMode("歌詞シート");
+  await page.locator(".sheet-line").first().locator(".sheet-cell.end").click();
+  const typed = page.locator(".sheet-panel").getByLabel("コード名を入力");
+  const group = page.getByRole("radiogroup", { name: "この位置のコード" });
+  const existing = (await group.getByRole("radio").allTextContents()).slice(0, -1); // 最後は「＋ もう1つ足す」
+  if (existing.length) await page.locator(".sheet-panel").getByRole("radio", { name: "＋ もう1つ足す" }).click();
+  await typed.fill("Am");
+  await typed.press("Enter");
+  await page.locator(".sheet-panel").getByRole("radio", { name: "＋ もう1つ足す" }).click();
+  await typed.fill("D");
+  await typed.press("Enter");
+  assert.deepEqual((await group.getByRole("radio").allTextContents()).slice(0, -1), [...existing, "Am", "D"]);
+  await group.getByRole("radio", { name: "Am", exact: true }).click();
+  await page.locator(".sheet-panel").getByRole("button", { name: "「Am」を取り除く" }).click();
+  assert.deepEqual((await group.getByRole("radio").allTextContents()).slice(0, -1), [...existing, "D"]);
+  await editMode("見る");
+  const after = await names();
+  assert.equal(after.length, before.length + 1, `${before} → ${after}`);
+  assert.ok(after.includes("D") && !after.includes("Am"));
 });
 
 await check("編集画面はコードフォームとリズムパターンだけ", async () => {

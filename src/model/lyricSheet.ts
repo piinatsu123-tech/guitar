@@ -20,7 +20,16 @@ export type SheetMark = {
 export type SheetLine = { chars: string[]; marks: SheetMark[] };
 export type SheetSection = { id?: string; name: string; lines: SheetLine[] };
 export type Sheet = SheetSection[];
-export type SheetPos = { section: number; line: number; at: number };
+/**
+ * シート上の位置。歌詞のないコードが続くと同じ位置に印が重なるので、
+ * k で「その位置の何番目の印か」を指す（省略時は0）。k が印の数と同じなら、その位置に新しく足す。
+ */
+export type SheetPos = { section: number; line: number; at: number; k?: number };
+
+/** その位置にある印（出てくる順） */
+export function marksAt(sheet: Sheet, pos: Omit<SheetPos, "k">): SheetMark[] {
+  return sheet[pos.section]?.lines[pos.line]?.marks.filter((mk) => mk.at === pos.at) ?? [];
+}
 
 /** 曲を歌詞シートにする */
 export function songToSheet(song: Song): Sheet {
@@ -123,20 +132,42 @@ export function parsePastedLyrics(text: string): Sheet {
 
 // ---- シートの編集（純粋関数） ----
 
-/** 位置にコードを置く（同じ位置に印があれば名前を変える＝元のコードを引き継ぐ） */
+/** 印の配列の中で、pos が指す印の添字（なければ -1） */
+function markIndex(line: SheetLine, pos: SheetPos): number {
+  let n = 0;
+  for (let i = 0; i < line.marks.length; i++) {
+    if (line.marks[i].at !== pos.at) continue;
+    if (n === (pos.k ?? 0)) return i;
+    n++;
+  }
+  return -1;
+}
+
+/**
+ * 位置にコードを置く。pos が指す印があれば名前を変え（元のコードを引き継ぐ）、
+ * なければその位置の最後の印の後ろに足す。
+ */
 export function setMark(sheet: Sheet, pos: SheetPos, name: string): Sheet {
   return mapLine(sheet, pos, (line) => {
-    const i = line.marks.findIndex((mk) => mk.at === pos.at);
+    const i = markIndex(line, pos);
     const marks = [...line.marks];
     if (i >= 0) marks[i] = { ...marks[i], name };
-    else marks.push({ at: pos.at, name });
+    else {
+      // 同じ位置の印の並び（＝演奏順）を保つため、その位置以前の最後の印の直後に入れる
+      let at = 0;
+      while (at < marks.length && marks[at].at <= pos.at) at++;
+      marks.splice(at, 0, { at: pos.at, name });
+    }
     return { ...line, marks };
   });
 }
 
-/** 位置のコードを取り除く（その歌詞は前のコードの続きになる） */
+/** pos が指す印（コード）を1つだけ取り除く（その歌詞は前のコードの続きになる） */
 export function removeMark(sheet: Sheet, pos: SheetPos): Sheet {
-  return mapLine(sheet, pos, (line) => ({ ...line, marks: line.marks.filter((mk) => mk.at !== pos.at) }));
+  return mapLine(sheet, pos, (line) => {
+    const i = markIndex(line, pos);
+    return i < 0 ? line : { ...line, marks: line.marks.filter((_, j) => j !== i) };
+  });
 }
 
 /** 行末（歌詞のないところ）に、もう1つコードを足す（前奏・間奏など） */

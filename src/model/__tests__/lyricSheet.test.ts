@@ -97,3 +97,35 @@ describe("歌詞シートでコードを置く", () => {
     ]);
   });
 });
+
+describe("歌詞のないコードが同じ位置に重なるとき", () => {
+  const song = (): Song => {
+    const s = createEmptySong();
+    const m = 48;
+    return {
+      ...s,
+      sections: [
+        makeSection("間奏", [makeChord("Dm", m), makeChord("G", m), makeChord("Cmaj7", m), makeChord("C", m)]),
+      ],
+    };
+  };
+  const names = (s: Song) => s.sections[0].chords.map((c) => c.chordName);
+
+  it("取り除くのは指した1つだけ（以前は同じ位置のコードがすべて消えていた）", () => {
+    let s = song();
+    s = sheetToSong(s, removeMark(songToSheet(s), { section: 0, line: 0, at: 0 }));
+    expect(names(s)).toEqual(["G", "Cmaj7", "C"]);
+    s = sheetToSong(s, removeMark(songToSheet(s), { section: 0, line: 0, at: 0, k: 1 }));
+    expect(names(s)).toEqual(["G", "C"]);
+  });
+
+  it("k 番目の名前を変える・同じ位置にもう1つ足す（順番を保つ）", () => {
+    let s = song();
+    const ids = s.sections[0].chords.map((c) => c.id);
+    s = sheetToSong(s, setMark(songToSheet(s), { section: 0, line: 0, at: 0, k: 2 }, "Am"));
+    expect(names(s)).toEqual(["Dm", "G", "Am", "C"]);
+    expect(s.sections[0].chords.map((c) => c.id)).toEqual(ids);
+    s = sheetToSong(s, setMark(songToSheet(s), { section: 0, line: 0, at: 0, k: 4 }, "G7"));
+    expect(names(s)).toEqual(["Dm", "G", "Am", "C", "G7"]);
+  });
+});
