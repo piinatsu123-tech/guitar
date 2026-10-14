@@ -1,4 +1,5 @@
 import { isValidTimeSignature, ticksPerMeasure } from "../music/timeline";
+import { NumberInput } from "./NumberInput";
 import type { Song } from "../model/types";
 
 export function SongInfoForm({ song, onChange }: { song: Song; onChange: (s: Song) => void }) {
@@ -16,27 +17,18 @@ export function SongInfoForm({ song, onChange }: { song: Song; onChange: (s: Son
       </label>
       <label className="field">
         <span>テンポ（BPM）</span>
-        <input
-          type="number"
-          min={20}
-          max={400}
-          value={song.tempo}
-          onChange={(e) => {
-            const v = Number(e.target.value);
-            if (Number.isFinite(v)) onChange({ ...song, tempo: Math.min(400, Math.max(20, Math.round(v))) });
-          }}
-        />
+        <NumberInput integer min={20} max={400} value={song.tempo} onCommit={(tempo) => onChange({ ...song, tempo })} />
       </label>
       <div className="field">
         <span>拍子</span>
         <div className="inline">
-          <input
-            type="number"
+          <NumberInput
+            integer
             aria-label="拍子の分子"
             min={1}
             max={16}
             value={song.timeSignature.numerator}
-            onChange={(e) => setTs(Number(e.target.value), song.timeSignature.denominator)}
+            onCommit={(n) => setTs(n, song.timeSignature.denominator)}
             className="narrow"
           />
           <span>/</span>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ChordPalette } from "../../components/ChordPalette";
+import { NumberInput } from "../../components/NumberInput";
 import { FormAnalysisView } from "../../components/FormAnalysisView";
 import { PianoView } from "../../components/PianoView";
 import { TabView } from "../../components/TabView";
@@ -183,16 +184,12 @@ function ChordEditor({
         <div className="btn-row">
           <span className="small">長さ</span>
           <label className="beats">
-            <input
-              type="number"
+            <NumberInput
               aria-label="長さ（拍）"
               min={0.25}
-              step={0.5}
+              max={64}
               value={beats}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                if (v > 0) onSongChange(setChordDuration(song, chord.id, beatsToTicks(v, ts)));
-              }}
+              onCommit={(v) => onSongChange(setChordDuration(song, chord.id, beatsToTicks(v, ts)))}
             />
             拍
           </label>

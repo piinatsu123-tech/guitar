@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { FormAnalysisView } from "../../components/FormAnalysisView";
+import { NumberInput } from "../../components/NumberInput";
 import { PianoView } from "../../components/PianoView";
 import { displayStartFret, TabView } from "../../components/TabView";
 import {
@@ -244,24 +245,24 @@ function FormWorkbench({
         <div className="gen-options">
           <label className="field inline-field">
             <span>フレット範囲</span>
-            <input
-              type="number"
+            <NumberInput
+              integer
               min={0}
               max={20}
               value={opts.minFret}
               aria-label="最小フレット"
               className="narrow"
-              onChange={(e) => setOpts({ ...opts, minFret: Math.max(0, Number(e.target.value) || 0) })}
+              onCommit={(minFret) => setOpts({ ...opts, minFret })}
             />
             〜
-            <input
-              type="number"
+            <NumberInput
+              integer
               min={0}
               max={24}
               value={opts.maxFret}
               aria-label="最大フレット"
               className="narrow"
-              onChange={(e) => setOpts({ ...opts, maxFret: Math.min(24, Number(e.target.value) || 0) })}
+              onCommit={(maxFret) => setOpts({ ...opts, maxFret })}
             />
           </label>
           <label className="toggle-inline">
@@ -274,13 +275,14 @@ function FormWorkbench({
           </label>
           <label className="field inline-field">
             <span>候補数</span>
-            <input
-              type="number"
+            <NumberInput
+              integer
               min={1}
               max={20}
               value={opts.maxResults}
+              aria-label="候補数"
               className="narrow"
-              onChange={(e) => setOpts({ ...opts, maxResults: Math.min(20, Math.max(1, Number(e.target.value) || 1)) })}
+              onCommit={(maxResults) => setOpts({ ...opts, maxResults })}
             />
           </label>
           <button

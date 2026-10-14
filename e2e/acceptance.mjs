@@ -780,6 +780,43 @@ await check("編集画面はコードフォームとリズムパターンだけ"
   await page.getByRole("button", { name: "‹ 演奏画面" }).click();
 });
 
+// 人と同じように1文字ずつ打つ（fill は値を一度に入れるので、途中の値で起きる不具合を見逃す）
+async function typeLikeHuman(locator, text) {
+  await locator.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Backspace");
+  for (const ch of text) await page.keyboard.type(ch, { delay: 20 });
+  await page.keyboard.press("Enter");
+}
+
+await check("数値の入力: テンポ・拍子・コードの長さを1文字ずつ打って入力できる", async () => {
+  await page.getByRole("button", { name: "曲情報" }).click();
+  const tempo = page.locator(".card").getByLabel("テンポ（BPM）");
+  await typeLikeHuman(tempo, "120");
+  assert.equal(await tempo.inputValue(), "120");
+  assert.match(await page.locator(".song-meta").textContent(), /♩ = 120/);
+  // 範囲外は丸める、数字でなければ元に戻す
+  await typeLikeHuman(tempo, "999");
+  assert.equal(await tempo.inputValue(), "400");
+  await typeLikeHuman(tempo, "abc");
+  assert.equal(await tempo.inputValue(), "400");
+  // 1回の入力は「元に戻す」1回で戻る
+  await page.getByRole("button", { name: "元に戻す", exact: true }).click();
+  assert.equal(await tempo.inputValue(), "120");
+  const num = page.getByLabel("拍子の分子");
+  await typeLikeHuman(num, "3");
+  assert.equal(await num.inputValue(), "3");
+  assert.match(await page.locator(".song-meta").textContent(), /3\/4拍子/);
+  await typeLikeHuman(num, "4");
+  await page.getByRole("button", { name: "曲情報" }).click();
+  await editMode("コード");
+  await scoreSlot(1).click();
+  const beats = page.getByLabel("長さ（拍）");
+  await typeLikeHuman(beats, "1.5");
+  assert.equal(await beats.inputValue(), "1.5");
+  await editMode("見る");
+});
+
 await check("ページエラーなし", async () => {
   assert.deepEqual(pageErrors, []);
 });
