@@ -5,7 +5,8 @@ import { FormAnalysisView } from "../../components/FormAnalysisView";
 import { PianoView } from "../../components/PianoView";
 import { TabView } from "../../components/TabView";
 import { formShorthand, parseChord, soundingNotes } from "../../music/chord";
-import { beatsToTicks, ticksPerMeasure, ticksToBeats } from "../../music/timeline";
+import { beatsToTicks, EIGHTH, SIXTEENTH, ticksPerBeat, ticksPerMeasure, ticksToBeats } from "../../music/timeline";
+import { lyricsText } from "../../music/lyrics";
 import { applyProgression, parseProgressionText, progressionToText } from "../../model/progressionText";
 import {
   addSection,
@@ -15,6 +16,9 @@ import {
   duplicateSection,
   findChord,
   insertChord,
+  mergeWithPrevious,
+  moveChordEnd,
+  moveChordStart,
   moveSection,
   pruneForms,
   renameChord,
@@ -147,6 +151,23 @@ function ChordEditor({
   };
   const resolved = resolveForm(song, chord);
   const beats = ticksToBeats(chord.durationTicks, ts);
+  const [nudge, setNudge] = useState<number>(EIGHTH);
+  const index = section.chords.findIndex((c) => c.id === chord.id);
+  const startTick = section.chords.slice(0, index).reduce((a, c) => a + c.durationTicks, 0);
+  const position = (t: number) => {
+    const bar = Math.floor(t / m) + 1;
+    const beat = (t % m) / ticksPerBeat(ts) + 1;
+    return `${bar}小節目 ${Number.isInteger(beat) ? beat : beat.toFixed(2).replace(/0$/, "")}拍目`;
+  };
+  const moveStart = (d: number) => {
+    const r = moveChordStart(song, chord.id, d);
+    if (r) onSongChange(r);
+  };
+  const moveEnd = (d: number) => {
+    const r = moveChordEnd(song, chord.id, d);
+    if (r) onSongChange(r);
+  };
+  const isLast = index === section.chords.length - 1;
   const add = (position: "before" | "after") => {
     const r = insertChord(song, chord.id, position, chord.chordName, m);
     onSongChange(r.song);
@@ -212,6 +233,81 @@ function ChordEditor({
           ))}
         </div>
 
+        <div className="timing-box" role="group" aria-label="切り替えのタイミング">
+          <div className="btn-row">
+            <span className="small">切り替えのタイミング</span>
+            <span className="muted small">ずらす幅</span>
+            {(
+              [
+                ["16分", SIXTEENTH],
+                ["8分", EIGHTH],
+                ["1拍", ticksPerBeat(ts)],
+              ] as const
+            ).map(([text, t]) => (
+              <button
+                key={text}
+                type="button"
+                className={`chip${nudge === t ? " on" : ""}`}
+                aria-pressed={nudge === t}
+                onClick={() => setNudge(t)}
+              >
+                {text}
+              </button>
+            ))}
+          </div>
+          <div className="btn-row">
+            <span className="timing-label">始まり {position(startTick)}</span>
+            <button
+              type="button"
+              className="small-btn"
+              aria-label="始まりを早く"
+              disabled={!moveChordStart(song, chord.id, -nudge)}
+              onClick={() => moveStart(-nudge)}
+            >
+              ◀ 早く
+            </button>
+            <button
+              type="button"
+              className="small-btn"
+              aria-label="始まりを遅く"
+              disabled={!moveChordStart(song, chord.id, nudge)}
+              onClick={() => moveStart(nudge)}
+            >
+              遅く ▶
+            </button>
+          </div>
+          <div className="btn-row">
+            <span className="timing-label">
+              終わり{" "}
+              {isLast
+                ? `${position(startTick + chord.durationTicks)}（セクションの最後）`
+                : position(startTick + chord.durationTicks)}
+            </span>
+            <button
+              type="button"
+              className="small-btn"
+              aria-label="終わりを早く"
+              disabled={!moveChordEnd(song, chord.id, -nudge)}
+              onClick={() => moveEnd(-nudge)}
+            >
+              ◀ 早く
+            </button>
+            <button
+              type="button"
+              className="small-btn"
+              aria-label="終わりを遅く"
+              disabled={!moveChordEnd(song, chord.id, nudge)}
+              onClick={() => moveEnd(nudge)}
+            >
+              遅く ▶
+            </button>
+          </div>
+          <p className="muted small">
+            隣のコードとの境目を動かします。曲の長さと歌詞の位置はそのままで、境目をまたいだ歌詞は隣のコードに移ります。
+            {isLast && "セクションの最後のコードの「終わり」は、長さそのものが変わります。"}
+          </p>
+        </div>
+
         <div className="btn-row">
           <button type="button" className="small-btn" onClick={() => add("before")}>
             ＋ 前に追加
@@ -234,6 +330,22 @@ function ChordEditor({
           </button>
           <button
             type="button"
+            className="small-btn"
+            disabled={index === 0}
+            title="このコードを消して、長さと歌詞を前のコードに足します"
+            onClick={() => {
+              const prev = section.chords[index - 1];
+              const r = mergeWithPrevious(song, chord.id);
+              if (r && prev) {
+                onSongChange(r);
+                onSelectChord(prev.id);
+              }
+            }}
+          >
+            前のコードとつなげる
+          </button>
+          <button
+            type="button"
             className="small-btn danger"
             disabled={section.chords.length === 1}
             title={
@@ -242,6 +354,14 @@ function ChordEditor({
                 : ""
             }
             onClick={() => {
+              const text = lyricsText(chord.lyrics);
+              if (
+                text &&
+                !window.confirm(
+                  `このコードの歌詞「${text}」も消えます。歌詞を残したいときは「前のコードとつなげる」を使ってください。削除しますか？`,
+                )
+              )
+                return;
               const i = section.chords.findIndex((c) => c.id === chord.id);
               const neighbor = section.chords[i + 1] ?? section.chords[i - 1];
               onSongChange(deleteChord(song, chord.id));

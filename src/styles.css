@@ -1833,3 +1833,20 @@ input.narrow {
 .sync-btn.ok {
   border-color: color-mix(in srgb, var(--primary) 50%, transparent);
 }
+
+/* ---------- コードの切り替えタイミング ---------- */
+
+.timing-box {
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  display: grid;
+  gap: 0.3rem;
+}
+.timing-box p {
+  margin: 0;
+}
+.timing-label {
+  min-width: 11.5em;
+  font-variant-numeric: tabular-nums;
+}

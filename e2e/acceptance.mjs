@@ -868,6 +868,44 @@ await check("パワーコード（5）を一覧から選べて、鍵盤をタッ
   await editMode("見る");
 });
 
+await check("コードの切り替えタイミングを前後にずらしても、歌詞は消えずに位置を保つ", async () => {
+  await page.getByRole("button", { name: "曲一覧へ戻る" }).click();
+  await page.getByRole("button", { name: "＋ 歌詞から作る" }).click();
+  await page.getByLabel("貼り付ける歌詞").fill("[A]\nあいうえ\nかきくけ");
+  await page.getByRole("button", { name: "シートにする" }).click();
+  const lines = async () => {
+    await editMode("歌詞シート");
+    const out = [];
+    for (const ln of await page.locator(".sheet-line").all())
+      out.push((await ln.locator(".sheet-char").allTextContents()).join("").replace(/＋$/, ""));
+    return out;
+  };
+  assert.deepEqual(await lines(), ["あいうえ", "かきくけ"]);
+  // 2つ目のコードの始まりを1拍早く → 「え」が2つ目のコードに移る
+  await editMode("コード");
+  await scoreSlot(2).click();
+  await page.getByRole("group", { name: "切り替えのタイミング" }).getByRole("button", { name: "1拍" }).click();
+  assert.match(await page.locator(".timing-box").textContent(), /始まり 2小節目 1拍目/);
+  await page.getByRole("button", { name: "始まりを早く" }).click();
+  assert.match(await page.locator(".timing-box").textContent(), /始まり 1小節目 4拍目/);
+  assert.deepEqual(await lines(), ["あいう", "えかきくけ"]);
+  // 元に戻す
+  await editMode("コード");
+  await page.getByRole("button", { name: "元に戻す", exact: true }).click();
+  assert.deepEqual(await lines(), ["あいうえ", "かきくけ"]);
+  // 1つ目を半小節に縮めても歌詞は残る
+  await editMode("コード");
+  await scoreSlot(1).click();
+  await page.locator(".ce-controls").getByRole("button", { name: "½小節" }).click();
+  assert.deepEqual(await lines(), ["あいうえ", "かきくけ"]);
+  // 前のコードとつなげる → 歌詞は1つのコードに
+  await editMode("コード");
+  await scoreSlot(1, 1).click();
+  await page.getByRole("button", { name: "前のコードとつなげる" }).click();
+  assert.deepEqual(await lines(), ["あいうえかきくけ"]);
+  await editMode("見る");
+});
+
 // 条件が成り立つまで待つ
 async function until(fn, ms = 10000) {
   const end = Date.now() + ms;

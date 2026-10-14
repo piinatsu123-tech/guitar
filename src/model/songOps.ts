@@ -65,7 +65,85 @@ export function renameChord(song: Song, chordId: string, chordName: string): Son
   });
 }
 
-/** コードの長さの変更。範囲外になった歌詞は末尾に寄せる。 */
+/**
+ * コードの切り替え位置を動かす（chordId のコードの始まりを delta だけ遅く／負なら早くする）。
+ * 前のコードが伸び、このコードが縮む（またはその逆）。曲全体の長さは変わらず、
+ * 歌詞は曲の中の位置をそのまま保って、境目をまたいだ文字は隣のコードへ移る。
+ * セクションの最初のコード、またはどちらかが 16分より短くなるときは null。
+ */
+export function moveChordStart(song: Song, chordId: string, delta: number): Song | null {
+  const found = findChord(song, chordId);
+  if (!found || delta === 0) return null;
+  const chords = found.section.chords;
+  const i = chords.findIndex((c) => c.id === chordId);
+  if (i <= 0) return null;
+  const prev = chords[i - 1];
+  const cur = chords[i];
+  const prevDur = prev.durationTicks + delta;
+  const curDur = cur.durationTicks - delta;
+  if (prevDur < SIXTEENTH || curDur < SIXTEENTH) return null;
+  // 前のコードの始まりからの位置で並べ直し、新しい境目で振り分ける
+  const all = [
+    ...prev.lyrics.map((l) => ({ ...l, abs: l.startTick })),
+    ...cur.lyrics.map((l) => ({ ...l, abs: l.startTick + prev.durationTicks })),
+  ];
+  const strip = ({ abs, ...l }: (typeof all)[number]) => ({ ...l, startTick: abs });
+  const prevLyrics = all.filter((l) => l.abs < prevDur).map(strip);
+  const curLyrics = all
+    .filter((l) => l.abs >= prevDur)
+    .map(strip)
+    .map((l) => ({ ...l, startTick: l.startTick - prevDur }));
+  return updateSection(song, found.section.id, (s) => ({
+    ...s,
+    chords: s.chords.map((c, j) =>
+      j === i - 1
+        ? { ...c, durationTicks: prevDur, lyrics: prevLyrics }
+        : j === i
+          ? { ...c, durationTicks: curDur, lyrics: curLyrics }
+          : c,
+    ),
+  }));
+}
+
+/**
+ * コードの終わりを動かす。後ろにコードがあれば切り替え位置を動かし（曲の長さは同じ）、
+ * セクションの最後のコードなら長さそのものを変える。
+ */
+export function moveChordEnd(song: Song, chordId: string, delta: number): Song | null {
+  const found = findChord(song, chordId);
+  if (!found || delta === 0) return null;
+  const chords = found.section.chords;
+  const i = chords.findIndex((c) => c.id === chordId);
+  const next = chords[i + 1];
+  if (next) return moveChordStart(song, next.id, delta);
+  const d = found.chord.durationTicks + delta;
+  return d < SIXTEENTH ? null : setChordDuration(song, chordId, d);
+}
+
+/** 前のコードとつなげる（このコードを消し、長さと歌詞を前のコードに足す。歌詞の位置はそのまま） */
+export function mergeWithPrevious(song: Song, chordId: string): Song | null {
+  const found = findChord(song, chordId);
+  if (!found) return null;
+  const chords = found.section.chords;
+  const i = chords.findIndex((c) => c.id === chordId);
+  if (i <= 0) return null;
+  const prev = chords[i - 1];
+  const cur = chords[i];
+  const merged = {
+    ...prev,
+    durationTicks: prev.durationTicks + cur.durationTicks,
+    lyrics: [...prev.lyrics, ...cur.lyrics.map((l) => ({ ...l, startTick: l.startTick + prev.durationTicks }))],
+    lineBreak: cur.lineBreak,
+  };
+  return pruneForms(
+    updateSection(song, found.section.id, (s) => ({
+      ...s,
+      chords: s.chords.flatMap((c, j) => (j === i - 1 ? [merged] : j === i ? [] : [c])),
+    })),
+  );
+}
+
+/** コードの長さの変更。範囲外になった歌詞は消さずに末尾へ詰める。 */
 export function setChordDuration(song: Song, chordId: string, durationTicks: number): Song {
   const d = Math.max(SIXTEENTH, Math.round(durationTicks));
   return updateChord(song, chordId, (c) => ({ ...c, durationTicks: d, lyrics: clampLyrics(c.lyrics, d, SIXTEENTH) }));

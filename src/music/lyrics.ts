@@ -91,10 +91,23 @@ export function reconcileLyrics(
   ];
 }
 
-/** コードの長さが変わったとき、範囲外に出た文字を最後の位置に収める */
-export function clampLyrics(events: LyricEvent[], duration: number, step: number): LyricEvent[] {
+/**
+ * コードが短くなったとき、範囲外に出た文字を範囲内に収める。
+ * 文字は消さず、順番も変えない。はみ出した分は末尾に step 間隔で詰め、それでも入らなければ前の文字も少しずつ寄せる
+ * （同じ位置にあった文字＝1つの音に乗る文字は一緒に動かす）。範囲内の文字はできるだけ動かさない。
+ */
+export function clampLyrics<T extends LyricEvent>(events: T[], duration: number, step: number): T[] {
   const maxTick = Math.max(0, Math.floor((duration - 1) / step) * step);
-  return events.map((e) => (e.startTick > maxTick ? { ...e, startTick: maxTick } : e));
+  if (events.every((e) => e.startTick <= maxTick)) return events;
+  const groups = groupLyricsByTick(events);
+  const moved = new Map<T, number>();
+  let limit = maxTick;
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const t = Math.max(0, Math.min(groups[i].startTick, limit));
+    for (const e of groups[i].chars) moved.set(e, t);
+    limit = t - step;
+  }
+  return events.map((e) => (moved.get(e) === e.startTick ? e : { ...e, startTick: moved.get(e)! }));
 }
 
 export type LyricGroup<T extends LyricEvent = LyricEvent> = { startTick: number; chars: T[] };
