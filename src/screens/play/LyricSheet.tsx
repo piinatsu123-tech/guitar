@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChordPalette } from "../../components/ChordPalette";
+import { keyboardRange, PianoView } from "../../components/PianoView";
 import { TabView } from "../../components/TabView";
 import {
   marksAt,
@@ -16,8 +17,8 @@ import {
 } from "../../model/lyricSheet";
 import { chordNamesInSong, resolveForm } from "../../model/songOps";
 import type { ChordEvent, DisplaySettings, Song } from "../../model/types";
-import { parseChord } from "../../music/chord";
-import { SectionRhythmBlock } from "./SectionRhythmBlock";
+import { parseChord, soundingNotes, type SoundingNote } from "../../music/chord";
+import { LineRhythmBlock } from "./LineRhythmBlock";
 
 type Props = {
   song: Song;
@@ -94,21 +95,36 @@ export function LyricSheet({ song, settings, onSongChange, editing, startWithPas
   };
 
   const diagram = (chordId: string | undefined) => {
-    if (!settings.showTab || !chordId) return null;
+    if ((!settings.showTab && !settings.showPiano) || !chordId) return null;
     const chord = chordById.get(chordId);
     if (!chord || chord.chordName === NO_CHORD) return null;
     const r = resolveForm(song, chord);
     if (!r.form) return null;
+    const rootPc = r.analysis?.chord?.root ?? null;
     return (
-      <span className="sheet-diagram">
-        <TabView
-          positions={r.form.positions}
-          labelMode={settings.tabLabelMode}
-          rootPc={r.analysis?.chord?.root ?? null}
-          compact
-          fretCount={4}
-        />
-      </span>
+      <>
+        {settings.showTab && (
+          <span className="sheet-diagram">
+            <TabView
+              positions={r.form.positions}
+              labelMode={settings.tabLabelMode}
+              rootPc={rootPc}
+              compact
+              fretCount={4}
+            />
+          </span>
+        )}
+        {settings.showPiano && (
+          <span className="sheet-piano">
+            <PianoView
+              notes={soundingNotes(r.form.positions)}
+              labelMode={settings.pianoLabelMode}
+              rootPc={rootPc}
+              range={inlinePianoRange(soundingNotes(r.form.positions))}
+            />
+          </span>
+        )}
+      </>
     );
   };
 
@@ -149,6 +165,93 @@ export function LyricSheet({ song, settings, onSongChange, editing, startWithPas
 
       {sheet.map((section, si) => {
         const sec = song.sections.find((s) => s.id === section.id);
+        const renderLine = (ln: SheetLine, li: number) => {
+          if (lineEdit && lineEdit.section === si && lineEdit.line === li) {
+            return (
+              <div key={li} className="sheet-line-edit btn-row">
+                <input
+                  type="text"
+                  autoFocus
+                  aria-label="この行の歌詞"
+                  value={lineEdit.text}
+                  onChange={(e) => setLineEdit({ ...lineEdit, text: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveLine();
+                    if (e.key === "Escape") setLineEdit(null);
+                  }}
+                />
+                <button type="button" className="small-btn primary" onClick={saveLine}>
+                  決定
+                </button>
+                <button type="button" className="small-btn" onClick={() => setLineEdit(null)}>
+                  やめる
+                </button>
+              </div>
+            );
+          }
+          return (
+            <div key={li} className="sheet-line">
+              {segmentsOf(ln, editing).map((seg) => {
+                const marks = ln.marks.filter((mk) => mk.at === seg.at);
+                const shown = marks.filter((mk) => editing || mk.name !== NO_CHORD);
+                const isSel = (at: number) =>
+                  !!active && active.section === si && active.line === li && active.at === at;
+                const select = (at: number) => {
+                  setPos({ section: si, line: li, at, k: 0 });
+                  setTyped("");
+                };
+                return (
+                  <span key={seg.at} className={`sheet-seg${shown.length ? " has-chord" : ""}`}>
+                    <span className="sheet-marks" onClick={editing ? () => select(seg.at) : undefined}>
+                      {shown.map((mk, i) => (
+                        <span key={i} className="sheet-mark">
+                          <span className={`sheet-chord${mk.name === NO_CHORD ? " nc" : ""}`}>{mk.name}</span>
+                          {diagram(mk.chordId)}
+                        </span>
+                      ))}
+                    </span>
+                    <span className="sheet-text">
+                      {seg.cells.map((at) => {
+                        const ch = at < ln.chars.length ? ln.chars[at] : null;
+                        const cls = `sheet-cell${ch === null ? " end" : ""}${isSel(at) ? " selected" : ""}`;
+                        if (!editing)
+                          return (
+                            <span key={at} className={cls}>
+                              <span className="sheet-char">{ch ?? ""}</span>
+                            </span>
+                          );
+                        const names = ln.marks.filter((mk) => mk.at === at).map((mk) => mk.name);
+                        return (
+                          <button
+                            key={at}
+                            type="button"
+                            className={cls}
+                            onClick={() => select(at)}
+                            aria-label={`${ch === null ? "行末" : `「${ch}」`}${names.length ? `（${names.join("・")}）` : ""}`}
+                            aria-pressed={isSel(at)}
+                          >
+                            <span className="sheet-char">{ch === null ? "＋" : ch}</span>
+                          </button>
+                        );
+                      })}
+                    </span>
+                  </span>
+                );
+              })}
+              {editing && (
+                <button
+                  type="button"
+                  className="icon-btn sheet-line-btn"
+                  aria-label="この行の歌詞を直す"
+                  title="この行の歌詞を直す"
+                  onClick={() => setLineEdit({ section: si, line: li, text: ln.chars.join("") })}
+                >
+                  ✎
+                </button>
+              )}
+            </div>
+          );
+        };
         return (
           <section key={section.id ?? si} className="sheet-section" aria-label={section.name}>
             {editing ? (
@@ -168,95 +271,15 @@ export function LyricSheet({ song, settings, onSongChange, editing, startWithPas
             ) : (
               <h2 className="prog-section-name">{section.name}</h2>
             )}
-            {section.lines.map((ln, li) => {
-              if (lineEdit && lineEdit.section === si && lineEdit.line === li) {
-                return (
-                  <div key={li} className="sheet-line-edit btn-row">
-                    <input
-                      type="text"
-                      autoFocus
-                      aria-label="この行の歌詞"
-                      value={lineEdit.text}
-                      onChange={(e) => setLineEdit({ ...lineEdit, text: e.target.value })}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveLine();
-                        if (e.key === "Escape") setLineEdit(null);
-                      }}
-                    />
-                    <button type="button" className="small-btn primary" onClick={saveLine}>
-                      決定
-                    </button>
-                    <button type="button" className="small-btn" onClick={() => setLineEdit(null)}>
-                      やめる
-                    </button>
-                  </div>
-                );
-              }
-              return (
-                <div key={li} className="sheet-line">
-                  {segmentsOf(ln, editing).map((seg) => {
-                    const marks = ln.marks.filter((mk) => mk.at === seg.at);
-                    const shown = marks.filter((mk) => editing || mk.name !== NO_CHORD);
-                    const isSel = (at: number) =>
-                      !!active && active.section === si && active.line === li && active.at === at;
-                    const select = (at: number) => {
-                      setPos({ section: si, line: li, at, k: 0 });
-                      setTyped("");
-                    };
-                    return (
-                      <span key={seg.at} className={`sheet-seg${shown.length ? " has-chord" : ""}`}>
-                        <span className="sheet-marks" onClick={editing ? () => select(seg.at) : undefined}>
-                          {shown.map((mk, i) => (
-                            <span key={i} className="sheet-mark">
-                              <span className={`sheet-chord${mk.name === NO_CHORD ? " nc" : ""}`}>{mk.name}</span>
-                              {diagram(mk.chordId)}
-                            </span>
-                          ))}
-                        </span>
-                        <span className="sheet-text">
-                          {seg.cells.map((at) => {
-                            const ch = at < ln.chars.length ? ln.chars[at] : null;
-                            const cls = `sheet-cell${ch === null ? " end" : ""}${isSel(at) ? " selected" : ""}`;
-                            if (!editing)
-                              return (
-                                <span key={at} className={cls}>
-                                  <span className="sheet-char">{ch ?? ""}</span>
-                                </span>
-                              );
-                            const names = ln.marks.filter((mk) => mk.at === at).map((mk) => mk.name);
-                            return (
-                              <button
-                                key={at}
-                                type="button"
-                                className={cls}
-                                onClick={() => select(at)}
-                                aria-label={`${ch === null ? "行末" : `「${ch}」`}${names.length ? `（${names.join("・")}）` : ""}`}
-                                aria-pressed={isSel(at)}
-                              >
-                                <span className="sheet-char">{ch === null ? "＋" : ch}</span>
-                              </button>
-                            );
-                          })}
-                        </span>
-                      </span>
-                    );
-                  })}
-                  {editing && (
-                    <button
-                      type="button"
-                      className="icon-btn sheet-line-btn"
-                      aria-label="この行の歌詞を直す"
-                      title="この行の歌詞を直す"
-                      onClick={() => setLineEdit({ section: si, line: li, text: ln.chars.join("") })}
-                    >
-                      ✎
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-            {/* リズム譜は歌詞の下に置く（コードとは連動しない） */}
-            {sec && <SectionRhythmBlock song={song} section={sec} editing={editing} onSongChange={onSongChange} />}
+            {section.lines.map((ln, li) => (
+              <div key={li} className="sheet-line-block">
+                {renderLine(ln, li)}
+                {/* リズム譜は行の下に置く（コードとは連動しない） */}
+                {sec && (
+                  <LineRhythmBlock song={song} section={sec} line={li} editing={editing} onSongChange={onSongChange} />
+                )}
+              </div>
+            ))}
           </section>
         );
       })}
@@ -385,4 +408,13 @@ function segmentsOf(line: SheetLine, editing: boolean): { at: number; cells: num
     else segs.push({ at: n, cells: [n] });
   } else if (last.at === n) last.cells.push(n);
   return segs.filter((sg) => sg.cells.length > 0 || line.marks.some((mk) => mk.at === sg.at));
+}
+
+/**
+ * 歌詞の上に並べる小さな鍵盤の範囲。どのコードも同じ大きさで並ぶよう C2〜B4 にそろえ、
+ * ハイポジションなどで外れる音があるときだけ広げる。
+ */
+function inlinePianoRange(notes: SoundingNote[]): { low: number; high: number } {
+  const fit = keyboardRange(notes);
+  return { low: Math.min(36, fit.low), high: Math.max(71, fit.high) };
 }

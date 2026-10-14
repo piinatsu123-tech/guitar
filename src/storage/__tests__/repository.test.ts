@@ -64,3 +64,32 @@ describe("表示設定の移行", () => {
     expect(normalizeSettings({ ...s, showPiano: true }).showPiano).toBe(true);
   });
 });
+
+describe("行ごとのリズム譜", () => {
+  it("0.15 のセクションのリズム譜は、最初の行のリズム譜として読み込む", () => {
+    const song = createSampleSong();
+    const raw = JSON.parse(JSON.stringify(song));
+    delete raw.sections[1].lineRhythms;
+    raw.sections[1].rhythm = {
+      lengthTicks: 48,
+      events: [{ id: "a", startTick: 0, durationTicks: 48, kind: "note", guitarAction: "downstroke" }],
+    };
+    const s = normalizeSong(raw);
+    expect(s.sections[1].lineRhythms).toEqual([
+      {
+        line: 0,
+        lengthTicks: 48,
+        events: [{ id: "a", startTick: 0, durationTicks: 48, kind: "note", guitarAction: "downstroke" }],
+      },
+    ]);
+    // 行番号の重複は最初のものだけ、長さは小節単位にそろえる
+    raw.sections[1].lineRhythms = [
+      { line: 2, lengthTicks: 50, events: [] },
+      { line: 2, lengthTicks: 96, events: [] },
+    ];
+    expect(normalizeSong(raw).sections[1].lineRhythms!.map((r) => [r.line, r.lengthTicks])).toEqual([
+      [0, 48],
+      [2, 48],
+    ]);
+  });
+});

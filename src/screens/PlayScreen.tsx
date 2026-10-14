@@ -154,6 +154,29 @@ export function PlayScreen({
               </button>
             ))}
           </div>
+          <label className="toggle-inline">
+            <input
+              type="checkbox"
+              checked={settings.showPiano}
+              onChange={(e) => onSettingsChange({ ...settings, showPiano: e.target.checked })}
+            />
+            ピアノ
+          </label>
+          <span className="small">ピアノの音名</span>
+          <div className="segmented" role="radiogroup" aria-label="ピアノの音名">
+            {LABEL_MODES.map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={settings.pianoLabelMode === v}
+                className={settings.pianoLabelMode === v ? "on" : ""}
+                onClick={() => onSettingsChange({ ...settings, pianoLabelMode: v })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

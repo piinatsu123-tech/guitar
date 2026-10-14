@@ -79,11 +79,13 @@ export type Section = {
   rhythmPatternId?: string;
   chords: ChordEvent[];
   measureRhythms?: MeasureRhythm[];
-  /** このセクションのリズム譜（コードとは切り離して、リズムだけを採譜したもの。小節数×小節長） */
-  rhythm?: SectionRhythm;
+  /** 歌詞の行ごとのリズム譜（コードとは切り離して、リズムだけを採譜したもの）。line はセクション内の行番号 */
+  lineRhythms?: LineRhythm[];
 };
 
+/** リズム譜（小節数×小節長） */
 export type SectionRhythm = { events: RhythmEvent[]; lengthTicks: number };
+export type LineRhythm = SectionRhythm & { line: number };
 
 export type Song = {
   id: string;

@@ -4,25 +4,27 @@ import { buildRhythmSchedule } from "../../audio/schedule";
 import { RhythmStaff } from "../../components/RhythmStaff";
 import { StepEditor } from "../../components/StepEditor";
 import { EIGHTH, ticksPerMeasure } from "../../music/timeline";
-import { setSectionRhythm } from "../../model/songOps";
-import type { RhythmEvent, Section, Song } from "../../model/types";
+import { setLineRhythm } from "../../model/songOps";
+import type { RhythmEvent, Section, SectionRhythm, Song } from "../../model/types";
 import { TapRecorder } from "../edit/TapRecorder";
 
 type Props = {
   song: Song;
   section: Section;
+  /** セクション内の行番号 */
+  line: number;
   editing: boolean;
   onSongChange: (song: Song) => void;
 };
 
 /**
- * セクションのリズム譜。コードとは切り離して、リズムだけを採譜・表示・再生する。
+ * 歌詞の行のリズム譜（行の下に置く）。コードとは切り離して、リズムだけを採譜・表示・再生する。
  * 再生は音程のない打撃音で、頭から1回通す（くり返さない）。
  */
-export function SectionRhythmBlock({ song, section, editing, onSongChange }: Props) {
+export function LineRhythmBlock({ song, section, line, editing, onSongChange }: Props) {
   const ts = song.timeSignature;
   const m = ticksPerMeasure(ts);
-  const rhythm = section.rhythm;
+  const rhythm = section.lineRhythms?.find((r) => r.line === line);
   const [open, setOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [bar, setBar] = useState<number | null>(null);
@@ -30,7 +32,7 @@ export function SectionRhythmBlock({ song, section, editing, onSongChange }: Pro
   const [stepTicks, setStepTicks] = useState(EIGHTH);
   const timer = useRef<number | null>(null);
   // 録音の直前のリズム譜（録音の「元に戻す」で戻す。なかったときは消す）
-  const beforeRecording = useRef<Section["rhythm"] | null>(null);
+  const beforeRecording = useRef<SectionRhythm | undefined>(undefined);
 
   // 編集を終えたら採譜の欄は閉じる（次に編集するときは閉じた状態から）
   useEffect(() => {
@@ -74,12 +76,22 @@ export function SectionRhythmBlock({ song, section, editing, onSongChange }: Pro
   };
 
   const save = (events: RhythmEvent[], lengthTicks: number) =>
-    onSongChange(setSectionRhythm(song, section.id, { events, lengthTicks }));
+    onSongChange(setLineRhythm(song, section.id, line, { events, lengthTicks }));
 
+  const label = `${section.name} ${line + 1}行目のリズム`;
   if (!rhythm && !editing) return null;
+  // 編集中でまだリズム譜のない行は、小さなボタンだけ（行ごとに大きな枠を出さない）
+  if (!rhythm && !open)
+    return (
+      <div className="line-rhythm-add">
+        <button type="button" className="link-btn small" aria-label={`${label}を採譜`} onClick={() => setOpen(true)}>
+          ＋ この行のリズム
+        </button>
+      </div>
+    );
 
   return (
-    <div className="section-rhythm" role="region" aria-label={`${section.name}のリズム`}>
+    <div className="section-rhythm" role="region" aria-label={label}>
       <div className="btn-row">
         <span className="section-rhythm-title">リズム</span>
         {rhythm && (
@@ -95,7 +107,7 @@ export function SectionRhythmBlock({ song, section, editing, onSongChange }: Pro
         )}
         {editing && (
           <button type="button" className="small-btn" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-            {rhythm ? "✎ リズムを直す" : "＋ リズムを採譜"}
+            {open ? "閉じる" : "✎ リズムを直す"}
           </button>
         )}
       </div>
@@ -107,7 +119,7 @@ export function SectionRhythmBlock({ song, section, editing, onSongChange }: Pro
             tempo={song.tempo}
             timeSignature={ts}
             measureTicks={m}
-            onUndo={() => onSongChange(setSectionRhythm(song, section.id, beforeRecording.current ?? null))}
+            onUndo={() => onSongChange(setLineRhythm(song, section.id, line, beforeRecording.current ?? null))}
             onApply={(events, lengthTicks, gridTicks) => {
               beforeRecording.current = rhythm;
               save(events, lengthTicks);
@@ -130,8 +142,8 @@ export function SectionRhythmBlock({ song, section, editing, onSongChange }: Pro
                   type="button"
                   className="small-btn danger"
                   onClick={() => {
-                    if (window.confirm(`「${section.name}」のリズム譜を消しますか？`)) {
-                      onSongChange(setSectionRhythm(song, section.id, null));
+                    if (window.confirm(`この行（${section.name} ${line + 1}行目）のリズム譜を消しますか？`)) {
+                      onSongChange(setLineRhythm(song, section.id, line, null));
                       setOpen(false);
                     }
                   }}

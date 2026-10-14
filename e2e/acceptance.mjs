@@ -123,6 +123,17 @@ await check("演奏画面: 歌詞の上にコード名とコード図（Aメロ 
   assert.equal(await page.locator(".score, .progression, .tl-diagram").count(), 0);
 });
 
+await check("表示: ピアノをオンにすると、コード図の下に鍵盤（C = C3 E3 G3 C4 E4）", async () => {
+  await page.getByRole("button", { name: "表示" }).click();
+  await page.getByLabel("ピアノ", { exact: true }).check();
+  const piano = section("Aメロ").locator(".sheet-seg.has-chord").first().locator(".sheet-piano .piano-view");
+  const label = await piano.getAttribute("aria-label");
+  for (const n of ["C3", "E3", "G3", "C4", "E4"]) assert.ok(label.includes(n), label);
+  await page.getByLabel("ピアノ", { exact: true }).uncheck();
+  assert.equal(await page.locator(".sheet-piano").count(), 0);
+  await page.getByRole("button", { name: "表示" }).click();
+});
+
 await check("表示: コード図をオフにすると名前だけ。再読み込み後も維持", async () => {
   await page.getByRole("button", { name: "表示" }).click();
   await page.getByLabel("コード図", { exact: true }).uncheck();
@@ -136,16 +147,21 @@ await check("表示: コード図をオフにすると名前だけ。再読み�
   await page.getByRole("button", { name: "表示" }).click();
 });
 
-await check("リズム譜: セクションに表示され、▶ で頭から1回だけ鳴って止まる（くり返さない）", async () => {
-  const r = page.getByRole("region", { name: "Aメロのリズム" });
+await check("リズム譜: 行の下に表示され、▶ で頭から1回だけ鳴って止まる（くり返さない）", async () => {
+  const r = page.getByRole("region", { name: "Aメロ 1行目のリズム" });
   assert.ok((await r.locator(".rhythm-staff .tl-measure").count()) >= 1);
   assert.ok((await r.locator(".tl-stroke").count()) >= 1);
-  // 歌詞の下に置く（セクションの最後の行より下）
-  const lastLine = await section("Aメロ").locator(".sheet-line").last().boundingBox();
+  // 行の下に置く（1行目の歌詞の下、2行目の上）
+  const [l1, l2] = [
+    await section("Aメロ").locator(".sheet-line").nth(0).boundingBox(),
+    await section("Aメロ").locator(".sheet-line").nth(1).boundingBox(),
+  ];
   const staff = await r.boundingBox();
-  assert.ok(staff.y >= lastLine.y + lastLine.height - 1, JSON.stringify([lastLine, staff]));
+  assert.ok(staff.y >= l1.y + l1.height - 1 && staff.y + staff.height <= l2.y + 1, JSON.stringify([l1, staff, l2]));
+  // ほかの行にはない
+  assert.equal(await page.getByRole("region", { name: "Aメロ 2行目のリズム" }).count(), 0);
   // リズム譜のないセクションには、見るだけのときは何も出ない
-  assert.equal(await page.getByRole("region", { name: "Bメロのリズム" }).count(), 0);
+  assert.equal(await page.getByRole("region", { name: /^Bメロ .*のリズム$/ }).count(), 0);
   const bars = await r.locator(".rhythm-staff .tl-measure").count();
   await r.getByRole("button", { name: "▶ リズムを聴く" }).click();
   await r.getByRole("button", { name: "■ 停止" }).waitFor();
@@ -263,7 +279,7 @@ await check("コードフォーム: パワーコード（E5 = 022xxx）を鍵盤
   await page.getByRole("button", { name: "‹ 演奏画面" }).click();
 });
 
-const rhythmOf = (name) => page.getByRole("region", { name: `${name}のリズム` });
+const rhythmOf = (name, line = 1) => page.getByRole("region", { name: `${name} ${line}行目のリズム` });
 const stepCells = async (n) => {
   const steps = page.locator(".section-rhythm-editor .step");
   const cells = [];
@@ -281,7 +297,7 @@ const recordButton = () => page.locator(".section-rhythm-editor").getByRole("but
 
 await check("リズム譜を採譜: クリックに合わせた4分のタップ → 4分ダウン×4 がセクションに入る", async () => {
   await startEdit();
-  await rhythmOf("サビ").getByRole("button", { name: "＋ リズムを採譜" }).click();
+  await page.getByRole("button", { name: "サビ 1行目のリズムを採譜" }).click();
   await page.getByLabel("録音する長さ").selectOption("1");
   await recordButton().click();
   const q = 60 / TEMPO;
@@ -376,7 +392,7 @@ await check("リズム譜を採譜: 細かさ「自動」で16分を叩くと16�
   );
 });
 
-await check("リズム譜: マス目で直す・消す（消すとセクションのリズム譜がなくなる、元に戻せる）", async () => {
+await check("リズム譜: マス目で直す・消す（消すとその行のリズム譜がなくなる、元に戻せる）", async () => {
   // 2マス目（1拍目の裏）を休符に
   await page.locator(".section-rhythm-editor .step").nth(1).click();
   await page.locator(".section-rhythm-editor").getByRole("button", { name: "休符", exact: true }).click();

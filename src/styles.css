@@ -1966,3 +1966,28 @@ input.narrow {
 .sheet-section .section-rhythm {
   margin: 10px 0 4px;
 }
+.sheet-piano {
+  display: block;
+  width: 168px;
+  margin-top: 2px;
+}
+.sheet-piano .piano-view {
+  max-width: none !important;
+}
+.sheet-line-block {
+  margin-bottom: 4px;
+}
+.sheet-line-block .section-rhythm {
+  margin: 2px 0 12px;
+}
+.line-rhythm-add {
+  margin: -4px 0 8px 4px;
+}
+.link-btn {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  padding: 4px 2px;
+  cursor: pointer;
+  text-decoration: underline;
+}

@@ -147,7 +147,7 @@ export function createSampleSong(): Song {
     [chorus, patterns[2]],
   ] as const)
     if (p.lengthTicks % m === 0)
-      sec.rhythm = { events: p.events.map((e) => ({ ...e, id: newId() })), lengthTicks: p.lengthTicks };
+      sec.lineRhythms = [{ line: 0, events: p.events.map((e) => ({ ...e, id: newId() })), lengthTicks: p.lengthTicks }];
   // 演奏タイミングのマーク例：各コードの最初の文字
   for (const s of [verse, chorus]) {
     for (const c of s.chords) {

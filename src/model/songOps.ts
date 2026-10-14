@@ -243,14 +243,18 @@ export function setMeasureRhythm(
   });
 }
 
-/** セクションのリズム譜を設定する（null で消す） */
-export function setSectionRhythm(song: Song, sectionId: string, rhythm: SectionRhythm | null): Song {
-  return updateSection(song, sectionId, (s) => ({
-    ...s,
-    rhythm: rhythm
-      ? { lengthTicks: rhythm.lengthTicks, events: rhythm.events.map((e) => ({ ...e, id: e.id || newId() })) }
-      : undefined,
-  }));
+/** 歌詞の行のリズム譜を設定する（null で消す）。line はセクション内の行番号 */
+export function setLineRhythm(song: Song, sectionId: string, line: number, rhythm: SectionRhythm | null): Song {
+  return updateSection(song, sectionId, (s) => {
+    const rest = (s.lineRhythms ?? []).filter((r) => r.line !== line);
+    const next = rhythm
+      ? [
+          ...rest,
+          { line, lengthTicks: rhythm.lengthTicks, events: rhythm.events.map((e) => ({ ...e, id: e.id || newId() })) },
+        ].sort((a, b) => a.line - b.line)
+      : rest;
+    return { ...s, lineRhythms: next.length ? next : undefined };
+  });
 }
 
 // ---- コード進行の編集（譜面から行う） ----

@@ -108,6 +108,18 @@ function normalizeSectionRhythm(v: unknown, measureTicks: number) {
   return { events: normalizeEvents(v.events, lengthTicks), lengthTicks };
 }
 
+function normalizeLineRhythms(s: Obj, measureTicks: number) {
+  const seen = new Set<number>();
+  const list = arr(s.lineRhythms)
+    .filter(isObj)
+    .map((r) => ({ line: int(r.line, -1, -1), ...normalizeSectionRhythm(r, measureTicks)! }))
+    .filter((r) => r.line >= 0 && !seen.has(r.line) && seen.add(r.line));
+  // 0.15 のセクションごとのリズム譜は、最初の行のリズム譜にする
+  const legacy = normalizeSectionRhythm(s.rhythm, measureTicks);
+  if (legacy && !seen.has(0)) list.unshift({ line: 0, ...legacy });
+  return list.length ? list.sort((a, b) => a.line - b.line) : undefined;
+}
+
 export function normalizeSong(v: unknown): Song {
   if (!isObj(v)) throw new Error("曲データの形式が正しくありません");
   const now = new Date().toISOString();
@@ -162,7 +174,7 @@ export function normalizeSong(v: unknown): Song {
       name: str(s.name, "セクション"),
       rhythmPatternId: patternRef(s.rhythmPatternId),
       measureRhythms: normalizeMeasureRhythms(s.measureRhythms, measureTicks),
-      rhythm: normalizeSectionRhythm(s.rhythm, measureTicks),
+      lineRhythms: normalizeLineRhythms(s, measureTicks),
       chords: arr(s.chords)
         .filter(isObj)
         .map((c) => {
