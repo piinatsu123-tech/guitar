@@ -101,6 +101,13 @@ function normalizeMeasureRhythms(v: unknown, measureTicks: number) {
   return list.length ? list : undefined;
 }
 
+function normalizeSectionRhythm(v: unknown, measureTicks: number) {
+  if (!isObj(v)) return undefined;
+  const bars = Math.max(1, Math.round(int(v.lengthTicks, measureTicks, 1) / measureTicks));
+  const lengthTicks = bars * measureTicks;
+  return { events: normalizeEvents(v.events, lengthTicks), lengthTicks };
+}
+
 export function normalizeSong(v: unknown): Song {
   if (!isObj(v)) throw new Error("曲データの形式が正しくありません");
   const now = new Date().toISOString();
@@ -155,6 +162,7 @@ export function normalizeSong(v: unknown): Song {
       name: str(s.name, "セクション"),
       rhythmPatternId: patternRef(s.rhythmPatternId),
       measureRhythms: normalizeMeasureRhythms(s.measureRhythms, measureTicks),
+      rhythm: normalizeSectionRhythm(s.rhythm, measureTicks),
       chords: arr(s.chords)
         .filter(isObj)
         .map((c) => {

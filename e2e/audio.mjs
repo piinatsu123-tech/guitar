@@ -118,6 +118,39 @@ assert.ok(tap.afterTap < 0.001, "タップ音は 40ms 以内に消える（ク�
 assert.ok(Math.abs(tap.tapHz1 - 440) < 60 && Math.abs(tap.tapHz2 - 440) < 60, "タップ音は 440Hz で一定");
 assert.ok(tap.clickHz > tap.tapHz1 * 1.8, "クリックとは高さが違って聞き分けられる");
 
+// リズム譜の打撃音：書いた時刻に鳴り、すぐ消える。ダウンはアップより強い
+const hits = await page.evaluate(async () => {
+  const { renderOffline } = await import("/src/audio/player.ts");
+  const sr = 22050;
+  const data = await renderOffline(
+    {
+      events: [
+        { kind: "hit", time: 0.1, stroke: "down" },
+        { kind: "hit", time: 0.5, stroke: "up" },
+        { kind: "hit", time: 0.9, stroke: "mute" },
+      ],
+      chordStarts: [],
+      duration: 1.3,
+    },
+    sr,
+    0,
+  );
+  const peak = (a, b) => Math.max(...data.slice(Math.floor(a * sr), Math.floor(b * sr)).map(Math.abs));
+  return {
+    before: peak(0, 0.095),
+    down: peak(0.1, 0.15),
+    downTail: peak(0.4, 0.49),
+    up: peak(0.5, 0.55),
+    mute: peak(0.9, 0.95),
+    muteTail: peak(0.98, 1.2),
+  };
+});
+console.log(JSON.stringify(hits));
+assert.ok(hits.before < 0.001, "打つ前は無音");
+assert.ok(hits.down > 0.05 && hits.up > 0.03 && hits.mute > 0.03, "それぞれの時刻で鳴る");
+assert.ok(hits.down > hits.up, "ダウンはアップより強い");
+assert.ok(hits.downTail < 0.01 && hits.muteTail < 0.005, "次の音までに消える（ブラッシングは特に短い）");
+
 await browser.close();
 await server.close();
 

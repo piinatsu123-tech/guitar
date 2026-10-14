@@ -13,7 +13,7 @@ import { sectionMeasureRows } from "../music/arrangement";
 import { soundingNotes, type SoundingNote } from "../music/chord";
 import { layoutSong, tilePattern, TICKS_PER_QUARTER, ticksPerBeat, ticksPerMeasure } from "../music/timeline";
 import { resolveForm } from "../model/songOps";
-import type { ChordEvent, RhythmPattern, Song } from "../model/types";
+import type { ChordEvent, RhythmEvent, RhythmPattern, Song, TimeSignature } from "../model/types";
 
 export type AudioEvent =
   | { kind: "strum"; time: number; direction: "down" | "up"; notes: SoundingNote[] }
@@ -22,7 +22,9 @@ export type AudioEvent =
   | { kind: "damp"; time: number }
   | { kind: "click"; time: number; accent: boolean }
   /** タップ録音の手応え音（音程の変わらない短い電子音） */
-  | { kind: "tap"; time: number };
+  | { kind: "tap"; time: number }
+  /** リズム譜の再生：音程のない打撃音（ストロークの向きで音色を変える） */
+  | { kind: "hit"; time: number; stroke: "down" | "up" | "pluck" | "mute" };
 
 export type Schedule = {
   events: AudioEvent[];
@@ -147,6 +149,33 @@ export function buildPatternSchedule(
   const events = eventsForRhythm(tilePattern(pattern, 0, length), notes, (t) => t * spt);
   events.push({ kind: "damp", time: length * spt });
   return { events, chordStarts: [], duration: length * spt };
+}
+
+/**
+ * リズム譜を頭から1回通して鳴らす（音程なし）。音符＋弾かない・休符は鳴らさない。
+ * beatStarts は拍ごとの時刻（再生位置の表示用）。
+ */
+export function buildRhythmSchedule(
+  rhythm: { events: RhythmEvent[]; lengthTicks: number },
+  tempo: number,
+  ts: TimeSignature,
+  opts: { metronome?: boolean } = {},
+): Schedule {
+  const spt = secondsPerTick(tempo);
+  const events: AudioEvent[] = [];
+  const stroke = { downstroke: "down", upstroke: "up", pluck: "pluck", mute: "mute" } as const;
+  for (const e of rhythm.events) {
+    if (e.kind !== "note" || e.guitarAction === "none") continue;
+    events.push({ kind: "hit", time: e.startTick * spt, stroke: stroke[e.guitarAction] });
+  }
+  if (opts.metronome) {
+    const beat = ticksPerBeat(ts);
+    const bar = ticksPerMeasure(ts);
+    for (let t = 0; t < rhythm.lengthTicks; t += beat)
+      events.push({ kind: "click", time: t * spt, accent: t % bar === 0 });
+  }
+  events.sort((a, b) => a.time - b.time);
+  return { events, chordStarts: [], duration: rhythm.lengthTicks * spt };
 }
 
 /**

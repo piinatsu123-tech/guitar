@@ -5,7 +5,7 @@ import { generateForms } from "../music/formGenerator";
 import { clampLyrics } from "../music/lyrics";
 import { SIXTEENTH } from "../music/timeline";
 import { makeChord, makeSection, newId } from "./factory";
-import type { ChordEvent, RhythmEvent, Section, Song } from "./types";
+import type { ChordEvent, RhythmEvent, Section, SectionRhythm, Song } from "./types";
 
 const autoFormCache = new Map<string, ChordForm | null>();
 
@@ -241,6 +241,16 @@ export function setMeasureRhythm(
     next.sort((a, b) => a.measure - b.measure);
     return { ...s, measureRhythms: next.length ? next : undefined };
   });
+}
+
+/** セクションのリズム譜を設定する（null で消す） */
+export function setSectionRhythm(song: Song, sectionId: string, rhythm: SectionRhythm | null): Song {
+  return updateSection(song, sectionId, (s) => ({
+    ...s,
+    rhythm: rhythm
+      ? { lengthTicks: rhythm.lengthTicks, events: rhythm.events.map((e) => ({ ...e, id: e.id || newId() })) }
+      : undefined,
+  }));
 }
 
 // ---- コード進行の編集（譜面から行う） ----

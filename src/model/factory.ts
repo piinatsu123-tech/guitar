@@ -134,6 +134,20 @@ export function createSampleSong(): Song {
     makeChord("C", m),
   ]);
   chorus.rhythmPatternId = patterns[2].id;
+  // 歌詞の行の区切り（歌詞とコードの表示で使う）
+  for (const [sec, ends] of [
+    [verse, [1, 3, 5, 7]],
+    [bridge, [1, 3, 7]],
+    [chorus, [1, 3, 5, 8]],
+  ] as const)
+    for (const i of ends) sec.chords[i].lineBreak = true;
+  // リズム譜の例（コードとは切り離したリズムだけの譜）
+  for (const [sec, p] of [
+    [verse, patterns[0]],
+    [chorus, patterns[2]],
+  ] as const)
+    if (p.lengthTicks % m === 0)
+      sec.rhythm = { events: p.events.map((e) => ({ ...e, id: newId() })), lengthTicks: p.lengthTicks };
   // 演奏タイミングのマーク例：各コードの最初の文字
   for (const s of [verse, chorus]) {
     for (const c of s.chords) {

@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { lyricsText } from "../../music/lyrics";
 import { createEmptySong, makeChord, makeSection } from "../factory";
-import { addEndMark, NO_CHORD, parsePastedLyrics, removeMark, setMark, sheetToSong, songToSheet } from "../lyricSheet";
+import {
+  addEndMark,
+  NO_CHORD,
+  parsePastedLyrics,
+  removeMark,
+  setLineText,
+  setMark,
+  sheetToSong,
+  songToSheet,
+  type Sheet,
+} from "../lyricSheet";
 import { saveForm, setChordDuration } from "../songOps";
 import type { Song } from "../types";
 
@@ -127,5 +137,38 @@ describe("歌詞のないコードが同じ位置に重なるとき", () => {
     expect(s.sections[0].chords.map((c) => c.id)).toEqual(ids);
     s = sheetToSong(s, setMark(songToSheet(s), { section: 0, line: 0, at: 0, k: 4 }, "G7"));
     expect(names(s)).toEqual(["Dm", "G", "Am", "C", "G7"]);
+  });
+});
+
+describe("行の歌詞を書き換える", () => {
+  const line = (chars: string, marks: [number, string][]): Sheet => [
+    { name: "A", lines: [{ chars: [...chars], marks: marks.map(([at, name]) => ({ at, name })) }] },
+  ];
+  const marksOf = (s: Sheet) => s[0].lines[0].marks.map((m) => `${m.at}${m.name}`);
+
+  it("前後が同じならコードは同じ文字の上に残る", () => {
+    // 「あさのひかり」→「あさのまぶしいひかり」：「ひ」の上の G は「ひ」に付いていく
+    const s = setLineText(
+      line("あさのひかり", [
+        [0, "C"],
+        [3, "G"],
+      ]),
+      { section: 0, line: 0 },
+      "あさのまぶしいひかり",
+    );
+    expect(s[0].lines[0].chars.join("")).toBe("あさのまぶしいひかり");
+    expect(marksOf(s)).toEqual(["0C", "7G"]);
+  });
+
+  it("消した部分にあったコードは範囲内に寄せる。行末のコードは行末のまま", () => {
+    const s = setLineText(
+      line("あいうえお", [
+        [2, "Am"],
+        [5, "F"],
+      ]),
+      { section: 0, line: 0 },
+      "あお",
+    );
+    expect(marksOf(s)).toEqual(["1Am", "2F"]);
   });
 });

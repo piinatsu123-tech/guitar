@@ -9,7 +9,6 @@ type Props = {
   songs: Song[];
   onOpen: (id: string) => void;
   onCreate: () => void;
-  onCreateFromLyrics: () => void;
   onAddSample: () => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
@@ -23,7 +22,6 @@ export function SongList({
   songs,
   onOpen,
   onCreate,
-  onCreateFromLyrics,
   onAddSample,
   onDuplicate,
   onDelete,
@@ -46,9 +44,6 @@ export function SongList({
       <div className="btn-row">
         <button type="button" className="primary" onClick={onCreate}>
           ＋ 新しい曲
-        </button>
-        <button type="button" className="primary" onClick={onCreateFromLyrics}>
-          ＋ 歌詞から作る
         </button>
         <button type="button" className="small-btn" onClick={onAddSample}>
           サンプル曲を追加

@@ -15,6 +15,7 @@ import { placementsOf, toggleNoteInForm } from "../../music/formEdit";
 import { DEFAULT_GENERATE_OPTIONS, generateForms, type GenerateOptions } from "../../music/formGenerator";
 import type { StringNumber } from "../../music/pitch";
 import { chordNamesInSong, clearForm, findChord, resolveForm, saveForm } from "../../model/songOps";
+import { NO_CHORD } from "../../model/lyricSheet";
 import type { DisplaySettings, Song } from "../../model/types";
 
 /** 鍵盤で編集するときの表示範囲：C2〜B5（ギターの最低音 E2 から 1弦20フレット付近まで） */
@@ -28,7 +29,7 @@ type Props = {
 };
 
 export function FormTab({ song, onChange, settings, focusChordId }: Props) {
-  const names = chordNamesInSong(song);
+  const names = chordNamesInSong(song).filter((n) => n !== NO_CHORD);
   const focus = findChord(song, focusChordId);
   const [chordName, setChordName] = useState<string>(focus?.chord.chordName ?? names[0] ?? "C");
   const [target, setTarget] = useState<string>("all"); // "all" またはコード ID

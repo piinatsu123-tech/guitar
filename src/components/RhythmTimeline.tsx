@@ -342,7 +342,7 @@ function MeasureView({
 }
 
 /** 音符・休符の並び。表記できない長さはタイで結んだ複数の音符に分けて描く。 */
-function Notes({ events, len }: { events: PlacedRhythmEvent[]; len: number }) {
+export function Notes({ events, len }: { events: PlacedRhythmEvent[]; len: number }) {
   const items: { tick: number; dur: number; rest: boolean; key: string }[] = [];
   const ties: { from: number; to: number; key: string }[] = [];
   let prevNoteStart: number | null = null;

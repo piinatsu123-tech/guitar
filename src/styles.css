@@ -1850,3 +1850,116 @@ input.narrow {
   min-width: 11.5em;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- 歌詞とコード（演奏画面） ---------- */
+
+.sheet-line {
+  align-items: flex-end;
+}
+.lyric-sheet:not(.editing) .sheet-cell {
+  cursor: default;
+}
+.lyric-sheet:not(.editing) .sheet-cell:hover {
+  background: transparent;
+}
+.sheet-cell {
+  justify-content: flex-end;
+}
+.sheet-marks {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  min-height: 1.4em;
+  padding-right: 4px;
+}
+.sheet-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.sheet-diagram {
+  display: block;
+  width: 78px;
+  margin-top: 2px;
+}
+.sheet-diagram .tab-view {
+  width: 100%;
+  height: auto;
+}
+.sheet-line-btn {
+  align-self: flex-end;
+  margin-left: 6px;
+  opacity: 0.6;
+}
+.sheet-line-edit input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-size: 1.2rem;
+}
+.sheet-section-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  max-width: 16rem;
+}
+.edit-panel.sheet-panel {
+  bottom: 8px;
+  max-height: 46vh;
+}
+.sheet-panel .spacer {
+  flex: 1 1 auto;
+}
+.display-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+/* セクションのリズム譜 */
+.section-rhythm {
+  margin: 4px 0 10px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface));
+  border-radius: 6px;
+}
+.section-rhythm-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.rhythm-staff {
+  margin-top: 4px;
+}
+.rhythm-staff .tl-measure.playing {
+  outline: 2px solid var(--accent);
+}
+.section-rhythm-editor {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+.sheet-seg {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin-right: 10px;
+}
+.sheet-seg:not(.has-chord) {
+  margin-right: 0;
+}
+.sheet-text {
+  display: flex;
+}
+.lyric-sheet:not(.editing) .sheet-cell {
+  min-width: 0;
+  padding: 0;
+}
+.lyric-sheet.editing .sheet-marks {
+  cursor: pointer;
+}
+/* 2小節以上のリズム譜は、広い画面では横に並べる */
+.timeline.rhythm-staff {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 8px 0;
+}

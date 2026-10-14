@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { createEmptySong, createSampleSong } from "./model/factory";
 import { touch } from "./model/songOps";
 import { DEFAULT_SETTINGS, type DisplaySettings, type Song } from "./model/types";
-import { EditScreen, type EditTab } from "./screens/edit/EditScreen";
-import { PlayScreen, type EditMode } from "./screens/PlayScreen";
+import { EditScreen } from "./screens/edit/EditScreen";
+import { PlayScreen } from "./screens/PlayScreen";
 import { SongList } from "./screens/SongList";
 import { VERSION_LABEL } from "./version";
 import { SyncPanel, syncStatusText } from "./components/SyncPanel";
@@ -12,8 +12,8 @@ import { exportSongs, importSongs, loadState, saveState, SCHEMA_VERSION, type Ap
 
 type Screen =
   | { kind: "list" }
-  | { kind: "play"; songId: string; startEditing?: EditMode }
-  | { kind: "edit"; songId: string; tab?: EditTab; chordId?: string };
+  | { kind: "play"; songId: string; startEditing?: boolean }
+  | { kind: "edit"; songId: string };
 
 function initialState(): AppState {
   const loaded = loadState();
@@ -39,7 +39,6 @@ export function App() {
       ? { kind: "play", songId: state.lastSongId }
       : { kind: "list" },
   );
-  const [selectedChordId, setSelectedChordId] = useState<string | undefined>();
   const [saveError, setSaveError] = useState<string | null>(null);
   const sync = useSync(state, setState);
 
@@ -66,7 +65,6 @@ export function App() {
   const setSettings = useCallback((settings: DisplaySettings) => setState((st) => ({ ...st, settings })), []);
 
   const openSong = (id: string) => {
-    setSelectedChordId(undefined);
     setState((st) => ({ ...st, lastSongId: id }));
     setScreen({ kind: "play", songId: id });
   };
@@ -83,23 +81,16 @@ export function App() {
         song={song}
         settings={state.settings}
         onSettingsChange={setSettings}
-        selectedChordId={selectedChordId}
-        onSelectChord={setSelectedChordId}
         onSongChange={replaceSong}
-        onEdit={(tab) =>
-          setScreen({ kind: "edit", songId: song.id, tab: tab as EditTab | undefined, chordId: selectedChordId })
-        }
+        onEditForms={() => setScreen({ kind: "edit", songId: song.id })}
         onBack={() => setScreen({ kind: "list" })}
-        initialEditMode={screen.startEditing ?? "view"}
-        initialSongInfo={!!screen.startEditing}
+        startEditing={screen.startEditing}
       />
     );
   } else if (screen.kind === "edit" && song) {
     body = (
       <EditScreen
         song={song}
-        initialTab={screen.tab}
-        focusChordId={screen.chordId}
         settings={state.settings}
         onSave={replaceSong}
         onClose={() => setScreen({ kind: "play", songId: song.id })}
@@ -111,14 +102,9 @@ export function App() {
         songs={state.songs}
         onOpen={openSong}
         onCreate={() => {
-          const s = addSong(createEmptySong());
-          setSelectedChordId(undefined);
-          setScreen({ kind: "play", songId: s.id, startEditing: "chord" });
-        }}
-        onCreateFromLyrics={() => {
+          // 新しい曲は歌詞の貼り付けから始める
           const s = addSong({ ...createEmptySong(), sections: [] });
-          setSelectedChordId(undefined);
-          setScreen({ kind: "play", songId: s.id, startEditing: "sheet" });
+          setScreen({ kind: "play", songId: s.id, startEditing: true });
         }}
         onAddSample={() => addSong(createSampleSong())}
         onDuplicate={(id) => {

@@ -97,6 +97,38 @@ export class VoiceRenderer {
   }
 
   /**
+   * リズム譜の打撃音（音程なし）。ノイズを帯域フィルターに通し、ストロークの向きで明るさ・強さを変える。
+   * ダウン＝太く強い、アップ＝明るく軽い、ピッキング＝短く細い、ブラッシング＝詰まった短い音。
+   */
+  private hit(when: number, stroke: "down" | "up" | "pluck" | "mute") {
+    const spec = {
+      down: { hz: 900, q: 0.6, level: 0.9, decay: 0.07 },
+      up: { hz: 2600, q: 0.7, level: 0.55, decay: 0.05 },
+      pluck: { hz: 3500, q: 1.2, level: 0.5, decay: 0.025 },
+      mute: { hz: 1800, q: 0.9, level: 0.6, decay: 0.015 },
+    }[stroke];
+    const len = Math.floor(this.ctx.sampleRate * (spec.decay * 4));
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let seed = 777;
+    const k = 1 / (spec.decay * this.ctx.sampleRate);
+    for (let i = 0; i < len; i++) {
+      seed = (seed * 9301 + 49297) % 233280;
+      d[i] = (seed / 233280 - 0.5) * 2 * Math.exp(-i * k);
+    }
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = spec.hz;
+    filter.Q.value = spec.q;
+    const gain = this.ctx.createGain();
+    gain.gain.value = spec.level;
+    src.connect(filter).connect(gain).connect(this.dest);
+    src.start(when);
+  }
+
+  /**
    * タップの手応え音。クリック（1000/1600Hz のサイン波）とかぶらないよう、
    * 低めの三角波を 30ms だけ、控えめな音量で鳴らす。音程はいつも同じ。
    */
@@ -138,6 +170,9 @@ export class VoiceRenderer {
       case "tap":
         this.tapBlip(when);
         break;
+      case "hit":
+        this.hit(when, e.stroke);
+        break;
     }
   }
 }
@@ -151,7 +186,7 @@ export async function renderOffline(schedule: Schedule, sampleRate = 22050, tail
   return out.getChannelData(0);
 }
 
-export type PlayerOwner = "song" | "recording" | "other";
+export type PlayerOwner = "song" | "recording" | "rhythm" | "other";
 
 const LOOKAHEAD = 0.3; // 秒
 const TIMER_MS = 50;

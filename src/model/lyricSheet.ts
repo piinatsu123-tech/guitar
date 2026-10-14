@@ -183,3 +183,31 @@ function mapLine(sheet: Sheet, pos: SheetPos, fn: (l: SheetLine) => SheetLine): 
     si !== pos.section ? s : { ...s, lines: s.lines.map((l, li) => (li === pos.line ? fn(l) : l)) },
   );
 }
+
+/**
+ * 行の歌詞を書き換える。置いたコードはできるだけ同じ文字の上に残す
+ * （変わらなかった前後の部分はそのまま、書き換えた部分にあった印はその範囲内に寄せる）。
+ */
+export function setLineText(sheet: Sheet, pos: Omit<SheetPos, "at" | "k">, text: string): Sheet {
+  return mapLine(sheet, { ...pos, at: 0 }, (line) => {
+    const next = splitGraphemes(text);
+    const old = line.chars;
+    let p = 0;
+    while (p < old.length && p < next.length && old[p] === next[p]) p++;
+    let s = 0;
+    while (s < old.length - p && s < next.length - p && old[old.length - 1 - s] === next[next.length - 1 - s]) s++;
+    const delta = next.length - old.length;
+    const marks = line.marks.map((mk) => {
+      // 変わった範囲の手前（挿入だけなら、挿入位置の印は後ろの文字に付いていく）
+      if (mk.at < p || (mk.at === p && old.length - s > p)) return mk;
+      if (mk.at >= old.length - s) return { ...mk, at: mk.at + delta };
+      return { ...mk, at: Math.min(mk.at, next.length - s) };
+    });
+    return { chars: next, marks };
+  });
+}
+
+/** セクション名を変える */
+export function renameSheetSection(sheet: Sheet, section: number, name: string): Sheet {
+  return sheet.map((s, i) => (i === section ? { ...s, name } : s));
+}
