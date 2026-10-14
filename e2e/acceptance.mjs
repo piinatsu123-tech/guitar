@@ -367,6 +367,67 @@ await check("リズム編集: ▶ 試聴 と停止", async () => {
   await page.getByRole("button", { name: "‹ 演奏画面" }).click();
 });
 
+// 録音が始まった瞬間から、ページ内で正確な間隔でキーを押す
+async function tapAlong(offsetsSec, keys) {
+  await page.evaluate(
+    ({ offsetsSec, keys }) =>
+      new Promise((resolve) => {
+        const status = document.querySelector(".tap-status");
+        const go = () => {
+          offsetsSec.forEach((t, i) =>
+            setTimeout(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: keys?.[i] ?? " " })), t * 1000),
+          );
+          setTimeout(resolve, offsetsSec[offsetsSec.length - 1] * 1000 + 50);
+        };
+        const obs = new MutationObserver(() => {
+          if (status.textContent.includes("録音中")) {
+            obs.disconnect();
+            go();
+          }
+        });
+        obs.observe(status, { childList: true, subtree: true, characterData: true });
+      }),
+    { offsetsSec, keys },
+  );
+}
+
+await check("タップ入力: クリックに合わせた4分のタップ → 4分ダウン×4", async () => {
+  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("tab", { name: "リズム" }).click();
+  await page.locator(".pattern-editor .chip, .rhythm-editor .chip").filter({ hasText: "全音符" }).click();
+  await page.getByRole("button", { name: "● 録音" }).click();
+  const q = 60 / 96; // ♩=96
+  await tapAlong([0, q, 2 * q, 3 * q]);
+  await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 6000 });
+  const steps = page.locator(".step");
+  assert.equal(await steps.count(), 8);
+  const states = await steps.locator(".step-state").allTextContents();
+  const actions = await steps.locator(".step-action").allTextContents();
+  assert.deepEqual(states, ["♪", "～", "♪", "～", "♪", "～", "♪", "～"]);
+  assert.deepEqual(actions.filter(Boolean), ["↓", "↓", "↓", "↓"]);
+  assert.match(await page.locator(".tap-status").textContent(), /4個の音符を入力しました/);
+});
+
+await check("タップ入力: 裏拍は自動でアップ（↓ ↓↑ ・↑ ↓↑）、元に戻せる", async () => {
+  const e = 60 / 96 / 2; // 8分
+  await page.getByRole("button", { name: "● 録音" }).click();
+  await tapAlong([0, 2 * e, 3 * e, 5 * e, 6 * e, 7 * e]);
+  await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 6000 });
+  const steps = page.locator(".step");
+  const cells = [];
+  for (let i = 0; i < 8; i++) {
+    cells.push(
+      (await steps.nth(i).locator(".step-state").textContent()) +
+        (await steps.nth(i).locator(".step-action").textContent()),
+    );
+  }
+  assert.deepEqual(cells, ["♪↓", "～", "♪↓", "♪↑", "～", "♪↑", "♪↓", "♪↑"]);
+  await page.getByRole("button", { name: "元に戻す" }).click();
+  assert.deepEqual((await steps.locator(".step-action").allTextContents()).filter(Boolean), ["↓", "↓", "↓", "↓"]);
+  await page.getByRole("button", { name: "破棄" }).click();
+  await page.getByRole("button", { name: "‹ 演奏画面" }).click();
+});
+
 await check("ページエラーなし", async () => {
   assert.deepEqual(pageErrors, []);
 });

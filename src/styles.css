@@ -1516,3 +1516,64 @@ input.narrow {
   font-size: 0.75rem;
   color: var(--muted);
 }
+
+/* ---------- タップ入力 ---------- */
+
+.tap-recorder {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px 12px;
+  margin: 8px 0;
+}
+.tap-status {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+}
+.tap-count {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.tap-status.countin .tap-count {
+  color: var(--warn);
+}
+.tap-status.recording .tap-count {
+  color: var(--danger);
+}
+.tap-progress {
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 4px 0 10px;
+}
+.tap-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.tap-pads {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 8px;
+}
+.tap-pad {
+  min-height: 96px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  font-size: 1.6rem;
+  font-weight: 800;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.tap-pad.main {
+  font-size: 1.3rem;
+  border-color: var(--accent);
+}
+.tap-pad:not(:disabled):active {
+  background: var(--accent-soft);
+  transform: scale(0.98);
+}

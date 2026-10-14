@@ -127,3 +127,25 @@ export function buildPatternSchedule(
   events.push({ kind: "damp", time: length * spt });
   return { events, chordStarts: [], duration: length * spt };
 }
+
+/**
+ * タップ録音用のクリック：カウントイン（countInBeats 拍）のあと、録音範囲 recordTicks の間も拍ごとに鳴らす。
+ * 録音範囲の頭は countInBeats 拍目の後（= recordOffset 秒）。
+ */
+export function buildClickTrack(
+  tempo: number,
+  ts: { numerator: number; denominator: number },
+  countInBeats: number,
+  recordTicks: number,
+): Schedule & { recordOffset: number } {
+  const spt = secondsPerTick(tempo);
+  const beat = ticksPerBeat(ts);
+  const bar = ticksPerMeasure(ts);
+  const countIn = countInBeats * beat;
+  const events: AudioEvent[] = [];
+  for (let t = 0; t < countIn + recordTicks; t += beat) {
+    const inRecord = t - countIn;
+    events.push({ kind: "click", time: t * spt, accent: inRecord >= 0 ? inRecord % bar === 0 : t === 0 });
+  }
+  return { events, chordStarts: [], duration: (countIn + recordTicks) * spt, recordOffset: countIn * spt };
+}

@@ -1,5 +1,6 @@
 // Web Audio による再生。スケジュール（schedule.ts）の各イベントを音に変える。
 // 同じ VoiceRenderer をリアルタイム再生とオフライン描画（検証用）の両方で使う。
+import type { SoundingNote } from "../music/chord";
 import type { StringNumber } from "../music/pitch";
 import type { AudioEvent, Schedule } from "./schedule";
 import { pluckWaveform } from "./synth";
@@ -143,13 +144,17 @@ export class GuitarPlayer {
   private timer: ReturnType<typeof setInterval> | null = null;
   private timeouts: ReturnType<typeof setTimeout>[] = [];
   private stopFn: (() => void) | null = null;
+  private renderer: VoiceRenderer | null = null;
 
   get playing() {
     return this.stopFn !== null;
   }
 
   /** ユーザー操作（クリック）の中で呼ぶこと（iOS などの自動再生制限のため） */
-  async play(schedule: Schedule, handlers: { onChord?: (id: string) => void; onEnd?: () => void } = {}) {
+  async play(
+    schedule: Schedule,
+    handlers: { onChord?: (id: string) => void; onEnd?: () => void } = {},
+  ): Promise<{ start: number }> {
     this.stop();
     if (!this.ctx) this.ctx = new AudioContext();
     const ctx = this.ctx;
@@ -160,6 +165,7 @@ export class GuitarPlayer {
     master.connect(comp).connect(ctx.destination);
     this.master = master;
     const renderer = new VoiceRenderer(ctx, master);
+    this.renderer = renderer;
     const start = ctx.currentTime + 0.1;
     let next = 0;
     const pump = () => {
@@ -193,6 +199,24 @@ export class GuitarPlayer {
       renderer.dampAll(ctx.currentTime);
       finish();
     };
+    return { start };
+  }
+
+  /**
+   * いま耳に届いている音の、オーディオ時計上の時刻。
+   * 出力には遅延があるので、クリックに合わせたタップの時刻はこの分だけ前にずらして比べる。
+   */
+  heardTime(): number {
+    const ctx = this.ctx;
+    if (!ctx) return 0;
+    return ctx.currentTime - (ctx.baseLatency || 0) - (ctx.outputLatency || 0);
+  }
+
+  /** タップの手応えとして、すぐにストロークを鳴らす */
+  strumNow(notes: SoundingNote[], direction: "down" | "up") {
+    if (!this.ctx || !this.renderer || notes.length === 0) return;
+    const ns = direction === "down" ? notes : notes.slice(-4);
+    this.renderer.apply({ kind: "strum", time: 0, direction, notes: ns }, this.ctx.currentTime);
   }
 
   stop() {
@@ -210,6 +234,7 @@ export class GuitarPlayer {
       setTimeout(() => master.disconnect(), 200);
     }
     this.master = null;
+    this.renderer = null;
   }
 }
 

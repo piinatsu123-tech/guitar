@@ -93,3 +93,23 @@ describe("再生スケジュール", () => {
     expect(s.events.filter((e) => e.kind === "strum")).toHaveLength(8);
   });
 });
+
+describe("タップ録音のクリック", () => {
+  it("カウントイン1小節＋録音1小節（♩=120）", async () => {
+    const { buildClickTrack } = await import("../schedule");
+    const c = buildClickTrack(120, { numerator: 4, denominator: 4 }, 4, 48);
+    expect(c.recordOffset).toBeCloseTo(2, 10);
+    expect(c.duration).toBeCloseTo(4, 10);
+    expect(c.events.map((e) => +e.time.toFixed(2))).toEqual([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]);
+    expect(c.events.map((e) => (e.kind === "click" ? e.accent : null))).toEqual([
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+});

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { player } from "../../audio/player";
 import { buildPatternSchedule } from "../../audio/schedule";
+import { TapRecorder } from "./TapRecorder";
 import { soundingNotes } from "../../music/chord";
 import { autoForm, chordNamesInSong, resolveForm } from "../../model/songOps";
 import { ACTION_LABEL, ACTION_SYMBOL, RhythmTimeline } from "../../components/RhythmTimeline";
@@ -164,20 +165,25 @@ function PatternEditor({
   });
   const [playing, setPlaying] = useState(false);
   useEffect(() => () => player.stop(), []);
+  // 曲で保存したフォームがあればそれを、なければ自動生成のフォームを使う
+  const previewNotes = () => {
+    const event = song.sections.flatMap((s) => s.chords).find((c) => c.chordName === previewChord);
+    const form = event ? resolveForm(song, event).form : autoForm(previewChord);
+    return form ? soundingNotes(form.positions) : [];
+  };
   const togglePreview = async () => {
     if (player.playing) {
       player.stop();
       return;
     }
-    // 曲で保存したフォームがあればそれを、なければ自動生成のフォームを使う
-    const event = song.sections.flatMap((s) => s.chords).find((c) => c.chordName === previewChord);
-    const form = event ? resolveForm(song, event).form : autoForm(previewChord);
-    if (!form) return;
+    const notes = previewNotes();
+    if (notes.length === 0) return;
     setPlaying(true);
-    await player.play(buildPatternSchedule(pattern, song.tempo, soundingNotes(form.positions), 4), {
+    await player.play(buildPatternSchedule(pattern, song.tempo, notes, 4), {
       onEnd: () => setPlaying(false),
     });
   };
+
   const m = ticksPerMeasure(ts);
   const aligned16 = pattern.events.every((e) => e.startTick % SIXTEENTH === 0 && e.durationTicks % SIXTEENTH === 0);
   const aligned8 = pattern.events.every((e) => e.startTick % EIGHTH === 0 && e.durationTicks % EIGHTH === 0);
@@ -374,6 +380,15 @@ function PatternEditor({
       )}
 
       {errors.length > 0 && <p className="warn small">⚠ {errors.join(" / ")}</p>}
+
+      <TapRecorder
+        pattern={pattern}
+        tempo={song.tempo}
+        timeSignature={ts}
+        gridTicks={stepTicks}
+        notes={previewNotes()}
+        onApply={(events) => onChange({ ...pattern, events })}
+      />
 
       <h3 className="block-title">プレビュー</h3>
       <div className="btn-row">
