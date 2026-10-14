@@ -391,10 +391,13 @@ function PatternEditor({
         pattern={pattern}
         tempo={song.tempo}
         timeSignature={ts}
-        gridTicks={stepTicks}
         notes={previewNotes()}
         measureTicks={m}
-        onApply={(events, lengthTicks) => onChange({ ...pattern, events, lengthTicks })}
+        onApply={(events, lengthTicks, gridTicks) => {
+          // マス目を採譜に使った細かさに合わせる（16分の結果を8分のマス目で丸めないように）
+          if (gridTicks && gridTicks < stepTicks) setStepTicks(gridTicks);
+          onChange({ ...pattern, events, lengthTicks });
+        }}
       />
 
       <h3 className="block-title">プレビュー</h3>

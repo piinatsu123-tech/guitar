@@ -19,6 +19,8 @@ export type TranscribedEvent = {
 
 export type Transcription = {
   events: TranscribedEvent[];
+  /** 実際に使ったグリッド（"auto" の場合は判定結果） */
+  gridTicks: number;
   /** 採用した各タップのずれ（ミリ秒、正 = 遅れ） */
   deviationsMs: number[];
   /** 範囲外・重複で捨てたタップの数 */
@@ -46,11 +48,33 @@ export function detectFeel(ticks: number[]): StrumFeel {
   return ticks.some((t) => t % 6 !== 0) ? "16beat" : "8beat";
 }
 
+const EIGHTH_TICKS = 6;
+const SIXTEENTH_TICKS = 3;
+
+/**
+ * 採譜の細かさを自動で決める。8分で足りるなら8分、足りなければ16分。
+ *   - 8分に寄せると同じマスに2回以上入るタップがある → 16分（細かく叩いている）
+ *   - 8分の位置から 8分の35%以上離れたタップがある → 16分（e・a を叩いている）
+ * 少しゆれた8分のタップ（ずれ 35% 未満）は8分のまま。
+ */
+export function chooseGrid(taps: Tap[], secondsPerTick: number, lengthTicks: number): number {
+  const seen = new Set<number>();
+  for (const tap of taps) {
+    const pos = tap.time / secondsPerTick / EIGHTH_TICKS;
+    const cell = Math.round(pos);
+    if (cell * EIGHTH_TICKS < 0 || cell * EIGHTH_TICKS >= lengthTicks) continue;
+    if (seen.has(cell) || Math.abs(pos - cell) > 0.35) return SIXTEENTH_TICKS;
+    seen.add(cell);
+  }
+  return EIGHTH_TICKS;
+}
+
 export function transcribeTaps(
   taps: Tap[],
-  opts: { secondsPerTick: number; lengthTicks: number; gridTicks: number },
+  opts: { secondsPerTick: number; lengthTicks: number; gridTicks: number | "auto" },
 ): Transcription {
-  const { secondsPerTick, lengthTicks, gridTicks } = opts;
+  const { secondsPerTick, lengthTicks } = opts;
+  const gridTicks = opts.gridTicks === "auto" ? chooseGrid(taps, secondsPerTick, lengthTicks) : opts.gridTicks;
   const onsets = new Map<number, GuitarAction | undefined>();
   const deviationsMs: number[] = [];
   let ignored = 0;
@@ -79,7 +103,7 @@ export function transcribeTaps(
     const end = ticks[i + 1] ?? lengthTicks;
     events.push({ startTick: t, durationTicks: end - t, kind: "note", guitarAction: onsets.get(t) ?? "downstroke" });
   });
-  return { events, deviationsMs, ignored };
+  return { events, gridTicks, deviationsMs, ignored };
 }
 
 /** ずれの傾向を言葉にする（練習のフィードバック用） */

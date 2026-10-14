@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoDirection, describeTiming, detectFeel, estimateOffset, transcribeTaps } from "../tapRhythm";
+import { autoDirection, chooseGrid, describeTiming, detectFeel, estimateOffset, transcribeTaps } from "../tapRhythm";
 
 // ♩=120 → 1 tick = 0.5 / 12 秒、4分音符 = 0.5秒、8分 = 0.25秒
 const spt = 0.5 / 12;
@@ -126,5 +126,57 @@ describe("タップからの採譜", () => {
     expect(r.events.map((x) => [x.startTick, x.guitarAction])).toEqual(
       Array.from({ length: 8 }, (_, i) => [i * 6, i % 2 ? "upstroke" : "downstroke"]),
     );
+  });
+
+  describe("細かさの自動判定", () => {
+    const auto = { secondsPerTick: spt, lengthTicks: 48, gridTicks: "auto" as const };
+    let seed = 3;
+    const wobble = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280 - 0.5) * 0.06; // ±30ms
+
+    it("8分グリッドのままだと16分のタップは消える（今回の症状）", () => {
+      const sixteenths = Array.from({ length: 16 }, (_, i) => ({ time: i * 0.125 }));
+      const r = transcribeTaps(sixteenths, opts8);
+      expect(r.events).toHaveLength(8);
+      expect(r.ignored).toBe(8);
+    });
+
+    it("自動なら16分を叩くと16分で採譜（↓↑↓↑…）", () => {
+      const sixteenths = Array.from({ length: 16 }, (_, i) => ({ time: i * 0.125 + wobble() }));
+      const r = transcribeTaps(sixteenths, auto);
+      expect(r.gridTicks).toBe(3);
+      expect(r.ignored).toBe(0);
+      expect(r.events.map((e) => e.guitarAction)).toEqual(
+        Array.from({ length: 16 }, (_, i) => (i % 2 ? "upstroke" : "downstroke")),
+      );
+    });
+
+    it("自動でも、ゆれた8分は8分のまま（16分と間違えない）", () => {
+      for (let k = 0; k < 20; k++) {
+        const eighths = Array.from({ length: 8 }, (_, i) => ({ time: i * 0.25 + wobble() }));
+        expect(chooseGrid(eighths, spt, 48)).toBe(6);
+      }
+    });
+
+    it("8分の中に1つだけ16分の裏（e）があれば16分", () => {
+      const taps = [0, 0.25, 0.375, 0.5].map((time) => ({ time }));
+      const r = transcribeTaps(taps, auto);
+      expect(r.gridTicks).toBe(3);
+      expect(r.events.map((e) => [e.startTick, e.guitarAction])).toEqual([
+        [0, "downstroke"],
+        [6, "downstroke"],
+        [9, "upstroke"],
+        [12, "downstroke"],
+      ]);
+    });
+
+    it("4分だけなら8分グリッド", () => {
+      expect(
+        chooseGrid(
+          [0, 0.5, 1, 1.5].map((time) => ({ time })),
+          spt,
+          48,
+        ),
+      ).toBe(6);
+    });
   });
 });

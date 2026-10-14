@@ -10,7 +10,7 @@ import {
   type Tap,
   type Transcription,
 } from "../../music/tapRhythm";
-import { EIGHTH } from "../../music/timeline";
+import { EIGHTH, SIXTEENTH } from "../../music/timeline";
 import { newId } from "../../model/factory";
 import type { GuitarAction, RhythmEvent, RhythmPattern, TimeSignature } from "../../model/types";
 
@@ -18,12 +18,11 @@ type Props = {
   pattern: RhythmPattern;
   tempo: number;
   timeSignature: TimeSignature;
-  gridTicks: number;
   /** タップしたときに鳴らすコードの音 */
   notes: SoundingNote[];
   measureTicks: number;
-  /** 録音した長さ（小節数×小節長）でパターンを置き換える */
-  onApply: (events: RhythmEvent[], lengthTicks: number) => void;
+  /** 録音した長さ（小節数×小節長）でパターンを置き換える。gridTicks は採譜に使った細かさ */
+  onApply: (events: RhythmEvent[], lengthTicks: number, gridTicks?: number) => void;
 };
 
 type Phase = "idle" | "countin" | "recording";
@@ -60,7 +59,11 @@ const SPEEDS = [
  */
 const BAR_CHOICES = [1, 2, 4, 8];
 
-export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, measureTicks, onApply }: Props) {
+type Resolution = "auto" | typeof EIGHTH | typeof SIXTEENTH;
+
+export function TapRecorder({ pattern, tempo, timeSignature, notes, measureTicks, onApply }: Props) {
+  // 採譜の細かさ。自動なら叩いたリズムから 8分／16分 を決める
+  const [resolution, setResolution] = useState<Resolution>("auto");
   const [phase, setPhase] = useState<Phase>("idle");
   const [speed, setSpeed] = useState<number>(1);
   const [progress, setProgress] = useState(0);
@@ -99,7 +102,8 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
     const time = player.heardTime() - s.recordStart;
     s.taps.push({ time, action });
     setTapCount(s.taps.length);
-    const tick = Math.round((time - offsetMs / 1000) / spt / gridTicks) * gridTicks;
+    const fb = resolution === "auto" ? SIXTEENTH : resolution;
+    const tick = Math.round((time - offsetMs / 1000) / spt / fb) * fb;
     const dir = action ?? autoDirection(tick, tick % 6 === 0 ? "8beat" : "16beat");
     player.strumNow(notes, dir === "upstroke" ? "up" : "down");
   };
@@ -176,12 +180,13 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
           return;
         }
         const corrected = s.taps.map((t) => ({ ...t, time: t.time - offsetMs / 1000 }));
-        const r = transcribeTaps(corrected, { secondsPerTick: spt, lengthTicks: recordTicks, gridTicks });
+        const r = transcribeTaps(corrected, { secondsPerTick: spt, lengthTicks: recordTicks, gridTicks: resolution });
         setResult(r);
         setUndo({ events: pattern.events, lengthTicks: pattern.lengthTicks });
         onApply(
           r.events.map((e) => ({ id: newId(), ...e })),
           recordTicks,
+          r.gridTicks,
         );
       },
     });
@@ -202,8 +207,8 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
       <p className="muted small">
         「録音」を押すと {timeSignature.numerator}{" "}
         拍のカウントインのあと、選んだ小節数だけ続けて録音し、パターンをその長さで置き換えます。
-        パッドをタップ（またはスペースキー）すると、表拍は ↓・裏拍は ↑ として、
-        {gridTicks === EIGHTH ? "8分" : "16分"}音符の位置に合わせて採譜します。向きを指定したいときは ↓／↑
+        パッドをタップ（またはスペースキー）すると、表拍は ↓・裏拍は ↑ として採譜します。
+        細かさが「自動」なら、叩いたリズムに合わせて8分か16分かを決めます。向きを指定したいときは ↓／↑
         のパッド（または矢印キー）を使います。
       </p>
       <div className="btn-row">
@@ -225,6 +230,18 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
                 {n}小節
               </option>
             ))}
+          </select>
+        </label>
+        <label className="field inline-field" style={{ margin: 0 }}>
+          <span>細かさ</span>
+          <select
+            value={String(resolution)}
+            onChange={(e) => setResolution(e.target.value === "auto" ? "auto" : (Number(e.target.value) as Resolution))}
+            disabled={busy}
+          >
+            <option value="auto">自動（おすすめ）</option>
+            <option value={EIGHTH}>8分まで</option>
+            <option value={SIXTEENTH}>16分まで</option>
           </select>
         </label>
         <span className="muted small">♩={recTempo}</span>
@@ -299,8 +316,10 @@ export function TapRecorder({ pattern, tempo, timeSignature, gridTicks, notes, m
         )}
         {phase === "idle" && result && (
           <span>
-            {notesCount}個の音符を入力しました。{describeTiming(result.deviationsMs)}
-            {result.ignored > 0 && `（範囲外・重複のタップ ${result.ignored}回は除外）`}
+            {notesCount}個の音符を{result.gridTicks === EIGHTH ? "8分" : "16分"}の細かさで入力しました。
+            {describeTiming(result.deviationsMs)}
+            {result.ignored > 0 &&
+              `（範囲外・同じマスへの重複タップ ${result.ignored}回は除外${resolution === EIGHTH ? "。細かいリズムなら細かさを「自動」か「16分まで」に" : ""}）`}
           </span>
         )}
         {phase === "idle" && calibrationMessage && <span>{calibrationMessage}</span>}

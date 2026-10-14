@@ -405,7 +405,7 @@ await check("タップ入力: クリックに合わせた4分のタップ → 4�
   const actions = await steps.locator(".step-action").allTextContents();
   assert.deepEqual(states, ["♪", "～", "♪", "～", "♪", "～", "♪", "～"]);
   assert.deepEqual(actions.filter(Boolean), ["↓", "↓", "↓", "↓"]);
-  assert.match(await page.locator(".tap-status").textContent(), /4個の音符を入力しました/);
+  assert.match(await page.locator(".tap-status").textContent(), /4個の音符を8分の細かさで入力しました/);
 });
 
 await check("タップ入力: 裏拍は自動でアップ（↓ ↓↑ ・↑ ↓↑）、元に戻せる", async () => {
@@ -519,6 +519,25 @@ await check("タップ入力: 音が 200ms 遅れる環境でも「補正を測�
   await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 6000 });
   assert.deepEqual(await stepCells(8), EIGHTHS_UPDOWN);
   await page.getByRole("button", { name: "0に戻す" }).click();
+  await page.getByRole("button", { name: "破棄" }).click();
+  await page.getByRole("button", { name: "‹ 演奏画面" }).click();
+});
+
+await check("タップ入力: 細かさ「自動」で16分を叩くと16分で採譜し、マス目も16分になる", async () => {
+  await page.getByRole("button", { name: "編集", exact: true }).click();
+  await page.getByRole("tab", { name: "リズム" }).click();
+  await page.getByRole("radio", { name: "8分" }).click(); // マス目は8分のまま始める（今回の症状の条件）
+  assert.equal(await page.locator(".step").count(), 8);
+  await page.getByRole("button", { name: "● 録音" }).click();
+  const s16 = 60 / 96 / 4;
+  await tapAlong(Array.from({ length: 16 }, (_, i) => i * s16));
+  await page.getByRole("button", { name: "● 録音" }).waitFor({ timeout: 6000 });
+  assert.equal(await page.locator(".step").count(), 16);
+  assert.deepEqual(
+    await stepCells(16),
+    Array.from({ length: 16 }, (_, i) => (i % 2 ? "♪↑" : "♪↓")),
+  );
+  assert.match(await page.locator(".tap-status").textContent(), /16個の音符を16分の細かさで入力/);
   await page.getByRole("button", { name: "破棄" }).click();
   await page.getByRole("button", { name: "‹ 演奏画面" }).click();
 });
