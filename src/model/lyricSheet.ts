@@ -17,7 +17,8 @@ export type SheetMark = {
   name: string;
   chordId?: string;
 };
-export type SheetLine = { chars: string[]; marks: SheetMark[] };
+/** bars: 小節の区切り（何文字目から新しい小節か。行頭は常に小節の頭なので含めない） */
+export type SheetLine = { chars: string[]; marks: SheetMark[]; bars?: number[] };
 export type SheetSection = { id?: string; name: string; lines: SheetLine[] };
 export type Sheet = SheetSection[];
 /**
@@ -45,6 +46,10 @@ export function songToSheet(song: Song): Sheet {
       }
     }
     if (cur.marks.length || cur.chars.length || lines.length === 0) lines.push(cur);
+    for (const lb of section.lineBars ?? []) {
+      const ln = lines[lb.line];
+      if (ln) ln.bars = lb.starts.filter((at) => at > 0 && at < ln.chars.length);
+    }
     return { id: section.id, name: section.name, lines };
   });
 }
@@ -92,7 +97,14 @@ export function sheetToSong(song: Song, sheet: Sheet): Song {
       };
     });
     const existing = ss.id ? song.sections.find((s) => s.id === ss.id) : undefined;
-    return existing ? { ...existing, name: ss.name, chords } : { id: newId(), name: ss.name, chords };
+    const lineBars = ss.lines
+      .map((ln, line) => ({
+        line,
+        starts: [...new Set(ln.bars ?? [])].filter((at) => at > 0 && at < ln.chars.length).sort((a, b) => a - b),
+      }))
+      .filter((lb) => lb.starts.length > 0);
+    const base = existing ? { ...existing, name: ss.name, chords } : { id: newId(), name: ss.name, chords };
+    return { ...base, lineBars: lineBars.length ? lineBars : undefined };
   });
   return pruneForms({ ...song, sections: sections.filter((s) => s.chords.length > 0) });
 }
@@ -125,7 +137,15 @@ export function parsePastedLyrics(text: string): Sheet {
       continue;
     }
     if (!cur) start();
-    cur!.lines.push({ chars: splitGraphemes(line), marks: [{ at: 0, name: NO_CHORD }] });
+    // 「|」「｜」は小節の区切り
+    const chars: string[] = [];
+    const bars: number[] = [];
+    for (const ch of splitGraphemes(line)) {
+      if (ch === "|" || ch === "｜") {
+        if (chars.length > 0) bars.push(chars.length);
+      } else chars.push(ch);
+    }
+    cur!.lines.push({ chars, marks: [{ at: 0, name: NO_CHORD }], bars: bars.length ? [...new Set(bars)] : undefined });
   }
   return sheet.filter((s) => s.lines.length > 0);
 }
@@ -197,14 +217,31 @@ export function setLineText(sheet: Sheet, pos: Omit<SheetPos, "at" | "k">, text:
     let s = 0;
     while (s < old.length - p && s < next.length - p && old[old.length - 1 - s] === next[next.length - 1 - s]) s++;
     const delta = next.length - old.length;
-    const marks = line.marks.map((mk) => {
+    const shift = (at: number) => {
       // 変わった範囲の手前（挿入だけなら、挿入位置の印は後ろの文字に付いていく）
-      if (mk.at < p || (mk.at === p && old.length - s > p)) return mk;
-      if (mk.at >= old.length - s) return { ...mk, at: mk.at + delta };
-      return { ...mk, at: Math.min(mk.at, next.length - s) };
-    });
-    return { chars: next, marks };
+      if (at < p || (at === p && old.length - s > p)) return at;
+      if (at >= old.length - s) return at + delta;
+      return Math.min(at, next.length - s);
+    };
+    const marks = line.marks.map((mk) => ({ ...mk, at: shift(mk.at) }));
+    const bars = [...new Set((line.bars ?? []).map(shift))].filter((at) => at > 0 && at < next.length);
+    return { chars: next, marks, bars: bars.length ? bars : undefined };
   });
+}
+
+/** pos の文字の前で小節を区切る／区切りをなくす（行頭は常に小節の頭なので何もしない） */
+export function toggleBar(sheet: Sheet, pos: Omit<SheetPos, "k">): Sheet {
+  return mapLine(sheet, { ...pos }, (line) => {
+    if (pos.at <= 0 || pos.at >= line.chars.length) return line;
+    const bars = line.bars ?? [];
+    const next = bars.includes(pos.at) ? bars.filter((b) => b !== pos.at) : [...bars, pos.at].sort((a, b) => a - b);
+    return { ...line, bars: next.length ? next : undefined };
+  });
+}
+
+/** 行の小節の数（区切り＋1） */
+export function barCount(line: SheetLine): number {
+  return 1 + (line.bars?.length ?? 0);
 }
 
 /** セクション名を変える */

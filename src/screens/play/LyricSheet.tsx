@@ -8,6 +8,8 @@ import {
   parsePastedLyrics,
   removeMark,
   renameSheetSection,
+  toggleBar,
+  barCount,
   setLineText,
   setMark,
   sheetToSong,
@@ -28,6 +30,8 @@ type Props = {
   editing: boolean;
   /** 開いたときに貼り付け欄を出す（歌詞から新しく作るとき） */
   startWithPaste?: boolean;
+  /** 通し再生中の位置（セクション・行・その行の何小節目か） */
+  playhead?: { section: number; line: number; bar: number } | null;
 };
 
 /**
@@ -35,7 +39,7 @@ type Props = {
  * コードの長さやタイミングは持たず、どの文字から弾き始めるかだけを置く。
  * 編集中は文字をタップしてコードを置く。シートは曲データから作る見え方なので、置いたコードはそのまま保存される。
  */
-export function LyricSheet({ song, settings, onSongChange, editing, startWithPaste = false }: Props) {
+export function LyricSheet({ song, settings, onSongChange, editing, startWithPaste = false, playhead = null }: Props) {
   const sheet = useMemo(() => songToSheet(song), [song]);
   const chordById = useMemo(() => {
     const map = new Map<string, ChordEvent>();
@@ -154,7 +158,7 @@ export function LyricSheet({ song, settings, onSongChange, editing, startWithPas
               シートにする
             </button>
             <span className="muted small">
-              [Aメロ]・【サビ】のような行はセクション名、空行はセクションの区切りになります。
+              [Aメロ]・【サビ】のような行はセクション名、空行はセクションの区切り、行の中の「|」は小節の区切りになります。
             </span>
           </div>
         </div>
@@ -213,7 +217,11 @@ export function LyricSheet({ song, settings, onSongChange, editing, startWithPas
                     <span className="sheet-text">
                       {seg.cells.map((at) => {
                         const ch = at < ln.chars.length ? ln.chars[at] : null;
-                        const cls = `sheet-cell${ch === null ? " end" : ""}${isSel(at) ? " selected" : ""}`;
+                        const barStart = !!ln.bars?.includes(at);
+                        const barIndex = (ln.bars ?? []).filter((b) => b <= at).length;
+                        const playingHere =
+                          !!playhead && playhead.section === si && playhead.line === li && playhead.bar === barIndex;
+                        const cls = `sheet-cell${ch === null ? " end" : ""}${isSel(at) ? " selected" : ""}${barStart ? " bar-start" : ""}${playingHere ? " playing-bar" : ""}`;
                         if (!editing)
                           return (
                             <span key={at} className={cls}>
@@ -272,11 +280,22 @@ export function LyricSheet({ song, settings, onSongChange, editing, startWithPas
               <h2 className="prog-section-name">{section.name}</h2>
             )}
             {section.lines.map((ln, li) => (
-              <div key={li} className="sheet-line-block">
+              <div
+                key={li}
+                className={`sheet-line-block${playhead && playhead.section === si && playhead.line === li ? " playing" : ""}`}
+              >
                 {renderLine(ln, li)}
                 {/* リズム譜は行の下に置く（コードとは連動しない） */}
                 {sec && (
-                  <LineRhythmBlock song={song} section={sec} line={li} editing={editing} onSongChange={onSongChange} />
+                  <LineRhythmBlock
+                    song={song}
+                    section={sec}
+                    line={li}
+                    bars={barCount(ln)}
+                    playingBar={playhead && playhead.section === si && playhead.line === li ? playhead.bar : null}
+                    editing={editing}
+                    onSongChange={onSongChange}
+                  />
                 )}
               </div>
             ))}
@@ -312,6 +331,16 @@ export function LyricSheet({ song, settings, onSongChange, editing, startWithPas
                   ＋ もう1つ足す
                 </button>
               </span>
+            )}
+            {active.at > 0 && active.at < line.chars.length && (
+              <button
+                type="button"
+                className={`small-btn${line.bars?.includes(active.at) ? " active" : ""}`}
+                aria-pressed={!!line.bars?.includes(active.at)}
+                onClick={() => onSongChange(sheetToSong(song, toggleBar(sheet, active)))}
+              >
+                {line.bars?.includes(active.at) ? "｜ 小節の区切りをなくす" : "｜ ここから次の小節"}
+              </button>
             )}
             <span className="spacer" />
             <button type="button" className="small-btn" onClick={() => step(-1)} aria-label="前の文字">

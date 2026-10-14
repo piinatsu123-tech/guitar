@@ -8,6 +8,8 @@ import {
   removeMark,
   setLineText,
   setMark,
+  toggleBar,
+  barCount,
   sheetToSong,
   songToSheet,
   type Sheet,
@@ -170,5 +172,36 @@ describe("行の歌詞を書き換える", () => {
       "あお",
     );
     expect(marksOf(s)).toEqual(["1Am", "2F"]);
+  });
+});
+
+describe("小節の区切り（歌詞の行の中）", () => {
+  it("貼り付けの「|」「｜」で区切れ、曲に保存して読み直しても残る", () => {
+    const s = fromPaste("[A]\nあさの|ひかり｜まど\nねむい");
+    const sheet = songToSheet(s);
+    expect(sheet[0].lines[0].chars.join("")).toBe("あさのひかりまど");
+    expect(sheet[0].lines[0].bars).toEqual([3, 6]);
+    expect(barCount(sheet[0].lines[0])).toBe(3);
+    expect(barCount(sheet[0].lines[1])).toBe(1);
+    expect(s.sections[0].lineBars).toEqual([{ line: 0, starts: [3, 6] }]);
+  });
+
+  it("文字の前で区切る／もう一度で消す。行頭は区切れない", () => {
+    let s = fromPaste("[A]\nあさのひかり");
+    s = sheetToSong(s, toggleBar(songToSheet(s), { section: 0, line: 0, at: 3 }));
+    expect(songToSheet(s)[0].lines[0].bars).toEqual([3]);
+    s = sheetToSong(s, toggleBar(songToSheet(s), { section: 0, line: 0, at: 0 }));
+    expect(songToSheet(s)[0].lines[0].bars).toEqual([3]);
+    s = sheetToSong(s, toggleBar(songToSheet(s), { section: 0, line: 0, at: 3 }));
+    expect(songToSheet(s)[0].lines[0].bars).toBeUndefined();
+    expect(s.sections[0].lineBars).toBeUndefined();
+  });
+
+  it("コードを置いても、行の歌詞を直しても、区切りは同じ文字の前に残る", () => {
+    let s = fromPaste("[A]\nあさの|ひかり");
+    s = sheetToSong(s, setMark(songToSheet(s), { section: 0, line: 0, at: 3 }, "G"));
+    expect(songToSheet(s)[0].lines[0].bars).toEqual([3]);
+    s = sheetToSong(s, setLineText(songToSheet(s), { section: 0, line: 0 }, "あさのまぶしいひかり"));
+    expect(songToSheet(s)[0].lines[0].bars).toEqual([7]);
   });
 });

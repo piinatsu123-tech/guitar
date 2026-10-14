@@ -108,6 +108,20 @@ function normalizeSectionRhythm(v: unknown, measureTicks: number) {
   return { events: normalizeEvents(v.events, lengthTicks), lengthTicks };
 }
 
+function normalizeLineBars(v: unknown) {
+  const seen = new Set<number>();
+  const list = arr(v)
+    .filter(isObj)
+    .map((r) => ({
+      line: int(r.line, -1, -1),
+      starts: [...new Set(arr(r.starts).filter((x): x is number => Number.isInteger(x) && (x as number) > 0))].sort(
+        (a, b) => a - b,
+      ),
+    }))
+    .filter((r) => r.line >= 0 && r.starts.length > 0 && !seen.has(r.line) && seen.add(r.line));
+  return list.length ? list : undefined;
+}
+
 function normalizeLineRhythms(s: Obj, measureTicks: number) {
   const seen = new Set<number>();
   const list = arr(s.lineRhythms)
@@ -175,6 +189,7 @@ export function normalizeSong(v: unknown): Song {
       rhythmPatternId: patternRef(s.rhythmPatternId),
       measureRhythms: normalizeMeasureRhythms(s.measureRhythms, measureTicks),
       lineRhythms: normalizeLineRhythms(s, measureTicks),
+      lineBars: normalizeLineBars(s.lineBars),
       chords: arr(s.chords)
         .filter(isObj)
         .map((c) => {

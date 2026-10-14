@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { lyricsText } from "../../music/lyrics";
 import { createEmptySong, makeChord, makeSection } from "../factory";
-import { mergeWithPrevious, moveChordEnd, moveChordStart, setChordDuration } from "../songOps";
+import {
+  addPatternFromRhythm,
+  mergeWithPrevious,
+  moveChordEnd,
+  moveChordStart,
+  patternToRhythm,
+  setChordDuration,
+} from "../songOps";
 import type { LyricEvent, Song } from "../types";
 
 const L = (text: string, startTick: number): LyricEvent => ({
@@ -81,5 +88,32 @@ describe("長さを縮めても歌詞は消えない", () => {
     const next = mergeWithPrevious(s, g.id)!;
     expect(timeline(next)).toBe("[C@0] あ@0 い@12 う@24 え@36 か@48 き@72 [Am@96]");
     expect(mergeWithPrevious(s, s.sections[0].chords[0].id)).toBeNull();
+  });
+});
+
+describe("パターンからリズム譜を作る", () => {
+  it("1小節のパターンを2小節に敷き詰める。半小節のパターンはくり返す", () => {
+    const song = createEmptySong();
+    const p = song.rhythmPatterns[0];
+    const r = patternToRhythm(p, 2, 48);
+    expect(r.lengthTicks).toBe(96);
+    expect(r.events.length).toBe(p.events.length * (96 / p.lengthTicks));
+    const half = {
+      ...p,
+      lengthTicks: 24,
+      events: [
+        { id: "x", startTick: 0, durationTicks: 24, kind: "note" as const, guitarAction: "downstroke" as const },
+      ],
+    };
+    expect(patternToRhythm(half, 1, 48).events.map((e) => e.startTick)).toEqual([0, 24]);
+  });
+  it("リズム譜をパターンとして登録できる", () => {
+    const song = createEmptySong();
+    const next = addPatternFromRhythm(song, "サビ", {
+      lengthTicks: 48,
+      events: [{ id: "a", startTick: 0, durationTicks: 48, kind: "note", guitarAction: "downstroke" }],
+    });
+    expect(next.rhythmPatterns.length).toBe(song.rhythmPatterns.length + 1);
+    expect(next.rhythmPatterns.at(-1)!.name).toBe("サビ");
   });
 });

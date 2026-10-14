@@ -4,7 +4,8 @@ import { buildRhythmSchedule } from "../../audio/schedule";
 import { RhythmStaff } from "../../components/RhythmStaff";
 import { StepEditor } from "../../components/StepEditor";
 import { EIGHTH, ticksPerMeasure } from "../../music/timeline";
-import { setLineRhythm } from "../../model/songOps";
+import { addPatternFromRhythm, patternToRhythm, setLineRhythm } from "../../model/songOps";
+import { defaultPatterns } from "../../model/factory";
 import type { RhythmEvent, Section, SectionRhythm, Song } from "../../model/types";
 import { TapRecorder } from "../edit/TapRecorder";
 
@@ -13,6 +14,10 @@ type Props = {
   section: Section;
   /** セクション内の行番号 */
   line: number;
+  /** 歌詞のこの行の小節数（区切り＋1）。リズム譜の小節数の目安 */
+  bars: number;
+  /** 通し再生中、この行の何小節目か（再生していなければ null） */
+  playingBar?: number | null;
   editing: boolean;
   onSongChange: (song: Song) => void;
 };
@@ -21,7 +26,7 @@ type Props = {
  * 歌詞の行のリズム譜（行の下に置く）。コードとは切り離して、リズムだけを採譜・表示・再生する。
  * 再生は音程のない打撃音で、頭から1回通す（くり返さない）。
  */
-export function LineRhythmBlock({ song, section, line, editing, onSongChange }: Props) {
+export function LineRhythmBlock({ song, section, line, bars, playingBar = null, editing, onSongChange }: Props) {
   const ts = song.timeSignature;
   const m = ticksPerMeasure(ts);
   const rhythm = section.lineRhythms?.find((r) => r.line === line);
@@ -30,6 +35,11 @@ export function LineRhythmBlock({ song, section, line, editing, onSongChange }: 
   const [bar, setBar] = useState<number | null>(null);
   const [metronome, setMetronome] = useState(false);
   const [stepTicks, setStepTicks] = useState(EIGHTH);
+  const patterns = song.rhythmPatterns.length ? song.rhythmPatterns : defaultPatterns();
+  const [patternId, setPatternId] = useState(patterns[0]?.id ?? "");
+  const [patternBars, setPatternBars] = useState(bars);
+  // 歌詞の小節の区切りを変えたら、入れる小節数もそれに合わせる
+  useEffect(() => setPatternBars(bars), [bars]);
   const timer = useRef<number | null>(null);
   // 録音の直前のリズム譜（録音の「元に戻す」で戻す。なかったときは消す）
   const beforeRecording = useRef<SectionRhythm | undefined>(undefined);
@@ -111,11 +121,67 @@ export function LineRhythmBlock({ song, section, line, editing, onSongChange }: 
           </button>
         )}
       </div>
-      {rhythm && <RhythmStaff rhythm={rhythm} timeSignature={ts} playingBar={bar} />}
+      {rhythm && <RhythmStaff rhythm={rhythm} timeSignature={ts} playingBar={bar ?? playingBar} />}
+      {editing && rhythm && Math.round(rhythm.lengthTicks / m) !== bars && (
+        <p className="muted small">
+          歌詞は{bars}小節、リズム譜は{Math.round(rhythm.lengthTicks / m)}
+          小節です（通し再生ではリズム譜の長さで進みます）。
+        </p>
+      )}
       {editing && open && (
         <div className="section-rhythm-editor">
+          <div className="btn-row pattern-fill" role="group" aria-label="パターンから入れる">
+            <span className="small">パターンから</span>
+            <select aria-label="パターン" value={patternId} onChange={(e) => setPatternId(e.target.value)}>
+              {patterns.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="入れる小節数"
+              value={patternBars}
+              onChange={(e) => setPatternBars(Number(e.target.value))}
+            >
+              {[1, 2, 3, 4, 6, 8].concat(bars > 8 ? [bars] : []).map((n) => (
+                <option key={n} value={n}>
+                  {n}小節{n === bars ? "（歌詞と同じ）" : ""}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="small-btn primary"
+              disabled={!patterns.some((p) => p.id === patternId)}
+              onClick={() => {
+                const p = patterns.find((x) => x.id === patternId);
+                if (!p) return;
+                const next = patternToRhythm(p, patternBars, m);
+                onSongChange(setLineRhythm(song, section.id, line, next));
+              }}
+            >
+              入れる
+            </button>
+            {rhythm && (
+              <button
+                type="button"
+                className="small-btn"
+                onClick={() => {
+                  const name = window.prompt("パターンの名前", `${section.name} ${line + 1}行目`);
+                  if (name && name.trim()) {
+                    const next = addPatternFromRhythm(song, name.trim(), rhythm);
+                    onSongChange(next);
+                    setPatternId(next.rhythmPatterns[next.rhythmPatterns.length - 1].id);
+                  }
+                }}
+              >
+                この行のリズムをパターンに登録
+              </button>
+            )}
+          </div>
           <TapRecorder
-            current={rhythm ?? { events: [], lengthTicks: m * 2 }}
+            current={rhythm ?? { events: [], lengthTicks: m * bars }}
             tempo={song.tempo}
             timeSignature={ts}
             measureTicks={m}

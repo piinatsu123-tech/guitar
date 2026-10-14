@@ -1991,3 +1991,19 @@ input.narrow {
   cursor: pointer;
   text-decoration: underline;
 }
+/* 小節の区切り（歌詞の中の縦線） */
+.sheet-cell.bar-start {
+  position: relative;
+  margin-left: 9px;
+}
+.sheet-cell.bar-start::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  bottom: 0.15em;
+  height: 1.3em;
+  border-left: 2px solid var(--muted);
+}
+.sheet-cell.playing-bar .sheet-char {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}

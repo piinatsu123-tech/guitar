@@ -81,6 +81,8 @@ export type Section = {
   measureRhythms?: MeasureRhythm[];
   /** 歌詞の行ごとのリズム譜（コードとは切り離して、リズムだけを採譜したもの）。line はセクション内の行番号 */
   lineRhythms?: LineRhythm[];
+  /** 歌詞の行の小節の区切り（行の何文字目から新しい小節か。行頭は常に小節の頭なので含めない） */
+  lineBars?: { line: number; starts: number[] }[];
 };
 
 /** リズム譜（小節数×小節長） */

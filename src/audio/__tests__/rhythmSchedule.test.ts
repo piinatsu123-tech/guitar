@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildRhythmSchedule } from "../schedule";
+import { buildRhythmSchedule, buildSongRhythmSchedule } from "../schedule";
+import { createEmptySong } from "../../model/factory";
+import { parsePastedLyrics, sheetToSong } from "../../model/lyricSheet";
+import { setLineRhythm } from "../../model/songOps";
 import type { RhythmEvent } from "../../model/types";
 
 const ev = (startTick: number, kind: "note" | "rest", guitarAction: RhythmEvent["guitarAction"]): RhythmEvent => ({
@@ -37,5 +40,28 @@ describe("buildRhythmSchedule（リズム譜を音程なしで1回通す）", ()
     const clicks = s.events.filter((e) => e.kind === "click");
     expect(clicks.length).toBe(8);
     expect(clicks.filter((c) => c.kind === "click" && c.accent).map((c) => c.time)).toEqual([0, 2]);
+  });
+});
+
+describe("buildSongRhythmSchedule（行ごとのリズム譜を通して鳴らす）", () => {
+  it("リズム譜のある行はその長さ、ない行は歌詞の小節数だけ進む。cues で行・小節を追える", () => {
+    const song = createEmptySong();
+    const sheetSong = sheetToSong({ ...song, sections: [], tempo: 120 }, parsePastedLyrics("[A]\nあ|い\nう\nえ"));
+    const sec = sheetSong.sections[0];
+    const withRhythm = setLineRhythm(sheetSong, sec.id, 1, {
+      lengthTicks: 96,
+      events: [ev(0, "note", "downstroke"), ev(54, "note", "upstroke")],
+    });
+    const s = buildSongRhythmSchedule(withRhythm);
+    // 1行目: 2小節（無音）→ 2行目: 2小節のリズム譜 → 3行目: 1小節（無音）。♩=120 で1小節2秒
+    expect(s.duration).toBe(10);
+    expect(s.events.map((e) => [e.kind, e.time])).toEqual([
+      ["hit", 4],
+      ["hit", 6.25],
+    ]);
+    expect(s.cues.map((c) => `${c.line}:${c.bar}@${c.time}`)).toEqual(["0:0@0", "0:1@2", "1:0@4", "1:1@6", "2:0@8"]);
+    expect(
+      buildSongRhythmSchedule(withRhythm, { metronome: true }).events.filter((e) => e.kind === "click").length,
+    ).toBe(20);
   });
 });

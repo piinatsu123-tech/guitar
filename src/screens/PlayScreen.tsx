@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { player } from "../audio/player";
+import { buildSongRhythmSchedule, type RhythmCue } from "../audio/schedule";
 import { SongInfoForm } from "../components/SongInfoForm";
 import { LyricSheet } from "./play/LyricSheet";
 import type { DisplaySettings, NoteLabelMode, Song } from "../model/types";
@@ -65,6 +66,51 @@ export function PlayScreen({
   // 画面を離れたら音を止める
   useEffect(() => () => player.stop(), []);
 
+  // 通し再生：行ごとのリズム譜を頭から順に鳴らし、今の行・小節を歌詞の上で示す
+  const [throughPlaying, setThroughPlaying] = useState(false);
+  const [metronome, setMetronome] = useState(true);
+  const [playhead, setPlayhead] = useState<Omit<RhythmCue, "time"> | null>(null);
+  const timer = useRef<number | null>(null);
+  const stopTimer = () => {
+    if (timer.current !== null) window.clearInterval(timer.current);
+    timer.current = null;
+    setPlayhead(null);
+  };
+  useEffect(() => stopTimer, []);
+  const toggleThrough = async () => {
+    if (throughPlaying) {
+      player.stop();
+      return;
+    }
+    const schedule = buildSongRhythmSchedule(song, { metronome });
+    if (schedule.duration === 0) return;
+    setThroughPlaying(true);
+    let last = "";
+    const follow = (started: number) => () => {
+      const t = (performance.now() - started) / 1000;
+      const cue = [...schedule.cues].reverse().find((c) => c.time <= t);
+      if (!cue) return;
+      const key = `${cue.section}-${cue.line}-${cue.bar}`;
+      if (key === last) return;
+      const lineChanged = !last.startsWith(`${cue.section}-${cue.line}-`);
+      last = key;
+      setPlayhead({ section: cue.section, line: cue.line, bar: cue.bar });
+      if (lineChanged)
+        requestAnimationFrame(() =>
+          document.querySelector(".sheet-line-block.playing")?.scrollIntoView({ block: "center", behavior: "smooth" }),
+        );
+    };
+    await player.play(schedule, {
+      owner: "rhythm",
+      onEnd: () => {
+        setThroughPlaying(false);
+        stopTimer();
+      },
+    });
+    // 再生は呼び出しの 0.1 秒後に始まる
+    if (player.owner === "rhythm") timer.current = window.setInterval(follow(performance.now() + 100), 40);
+  };
+
   return (
     <div className="play-screen">
       <header className="song-header">
@@ -81,6 +127,18 @@ export function PlayScreen({
           </div>
         </div>
         <div className="header-actions">
+          <button
+            type="button"
+            className={throughPlaying ? "primary" : "ghost"}
+            onClick={toggleThrough}
+            aria-label={throughPlaying ? "通し再生を止める" : "リズムを通しで再生"}
+          >
+            {throughPlaying ? "■ 停止" : "▶ 通しで再生"}
+          </button>
+          <label className="toggle-inline small">
+            <input type="checkbox" checked={metronome} onChange={(e) => setMetronome(e.target.checked)} />
+            クリック
+          </label>
           <button
             type="button"
             className={editing ? "primary" : "ghost"}
@@ -181,6 +239,7 @@ export function PlayScreen({
       )}
 
       <LyricSheet
+        playhead={playhead}
         song={song}
         settings={settings}
         onSongChange={commit}

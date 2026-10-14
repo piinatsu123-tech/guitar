@@ -404,6 +404,39 @@ await check("リズム譜: マス目で直す・消す（消すとその行の�
   assert.equal(await rhythmOf("サビ").locator(".rhythm-staff").count(), 1);
 });
 
+await check("小節の区切り: 歌詞の文字の前で区切ると縦線が出て、リズム譜の小節数の目安になる", async () => {
+  await startEdit();
+  await cell("Aメロ", "ま").click();
+  await panel().getByRole("button", { name: "｜ ここから次の小節" }).click();
+  assert.equal(await section("Aメロ").locator(".sheet-line").first().locator(".sheet-cell.bar-start").count(), 1);
+  // パターンから2小節（歌詞と同じ）入れる
+  await page.getByRole("button", { name: "Aメロ 1行目のリズムを採譜" }).click();
+  const fill = page.getByRole("group", { name: "パターンから入れる" });
+  assert.equal(await fill.getByLabel("入れる小節数").inputValue(), "2");
+  await fill.getByLabel("パターン").selectOption({ index: 1 });
+  await fill.getByRole("button", { name: "入れる" }).click();
+  assert.equal(await rhythmOf("Aメロ").locator(".rhythm-staff .tl-measure").count(), 2);
+  await panel().getByRole("button", { name: "閉じる" }).click();
+  await endEdit();
+  assert.equal(await section("Aメロ").locator(".sheet-cell.bar-start").count(), 1);
+  await page.reload();
+  assert.equal(await section("Aメロ").locator(".sheet-cell.bar-start").count(), 1);
+});
+
+await check("通しで再生: 行ごとのリズムを頭から鳴らし、今の行・小節を歌詞の上で示す", async () => {
+  await page.getByRole("button", { name: "リズムを通しで再生" }).click();
+  await page.getByRole("button", { name: "通し再生を止める" }).waitFor();
+  await page.locator(".sheet-line-block.playing").first().waitFor({ timeout: 3000 });
+  // 1行目の1小節目（「あさのひかりが」）が光る
+  assert.equal(await page.locator(".sheet-cell.playing-bar").first().textContent(), "あ");
+  // ♩=90 で1小節 約2.67秒。2小節目（「まど…」）に進む
+  await page.waitForTimeout(2900);
+  assert.equal(await page.locator(".sheet-cell.playing-bar").first().textContent(), "ま");
+  await page.getByRole("button", { name: "通し再生を止める" }).click();
+  await page.getByRole("button", { name: "リズムを通しで再生" }).waitFor();
+  assert.equal(await page.locator(".sheet-line-block.playing").count(), 0);
+});
+
 await check("数値の入力: テンポ・拍子を1文字ずつ打って入力できる（曲情報）", async () => {
   await startEdit();
   await page.getByRole("button", { name: "曲情報" }).click();

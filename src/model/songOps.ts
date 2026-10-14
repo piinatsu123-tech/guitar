@@ -3,9 +3,9 @@
 import { analyzeForm, positionsFromFrets, type ChordForm, type FormAnalysis } from "../music/chord";
 import { generateForms } from "../music/formGenerator";
 import { clampLyrics } from "../music/lyrics";
-import { SIXTEENTH } from "../music/timeline";
+import { SIXTEENTH, tilePattern } from "../music/timeline";
 import { makeChord, makeSection, newId } from "./factory";
-import type { ChordEvent, RhythmEvent, Section, SectionRhythm, Song } from "./types";
+import type { ChordEvent, RhythmEvent, RhythmPattern, Section, SectionRhythm, Song } from "./types";
 
 const autoFormCache = new Map<string, ChordForm | null>();
 
@@ -241,6 +241,32 @@ export function setMeasureRhythm(
     next.sort((a, b) => a.measure - b.measure);
     return { ...s, measureRhythms: next.length ? next : undefined };
   });
+}
+
+/** パターンを bars 小節ぶん敷き詰めたリズム譜（パターンが小節より短ければくり返し、長ければ切る） */
+export function patternToRhythm(pattern: RhythmPattern, bars: number, measureTicks: number): SectionRhythm {
+  const lengthTicks = Math.max(1, bars) * measureTicks;
+  const events = tilePattern(pattern, 0, lengthTicks)
+    .filter((e) => !e.clippedStart)
+    .map(({ startTick, durationTicks, kind, guitarAction }) => ({
+      id: newId(),
+      startTick,
+      durationTicks,
+      kind,
+      guitarAction,
+    }));
+  return { events, lengthTicks };
+}
+
+/** リズム譜をパターンとして登録する（ほかの行で使えるように） */
+export function addPatternFromRhythm(song: Song, name: string, rhythm: SectionRhythm): Song {
+  const pattern: RhythmPattern = {
+    id: newId(),
+    name,
+    lengthTicks: rhythm.lengthTicks,
+    events: rhythm.events.map((e) => ({ ...e, id: newId() })),
+  };
+  return { ...song, rhythmPatterns: [...song.rhythmPatterns, pattern] };
 }
 
 /** 歌詞の行のリズム譜を設定する（null で消す）。line はセクション内の行番号 */

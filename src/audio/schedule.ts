@@ -13,6 +13,7 @@ import { sectionMeasureRows } from "../music/arrangement";
 import { soundingNotes, type SoundingNote } from "../music/chord";
 import { layoutSong, tilePattern, TICKS_PER_QUARTER, ticksPerBeat, ticksPerMeasure } from "../music/timeline";
 import { resolveForm } from "../model/songOps";
+import { barCount, songToSheet } from "../model/lyricSheet";
 import type { ChordEvent, RhythmEvent, RhythmPattern, Song, TimeSignature } from "../model/types";
 
 export type AudioEvent =
@@ -176,6 +177,45 @@ export function buildRhythmSchedule(
   }
   events.sort((a, b) => a.time - b.time);
   return { events, chordStarts: [], duration: rhythm.lengthTicks * spt };
+}
+
+/** 通し再生の目印：この時刻から、この行のこの小節（0始まり） */
+export type RhythmCue = { time: number; section: number; line: number; bar: number };
+
+/**
+ * 歌詞の行ごとのリズム譜を、曲の頭から通して鳴らす（音程なし）。
+ * リズム譜のない行は、歌詞の小節数（区切り＋1）だけ音を出さずに進む（メトロノームだけ鳴る）。
+ * リズム譜があればその長さで進む。cues は行・小節ごとの開始時刻（画面の追従用）。
+ */
+export function buildSongRhythmSchedule(
+  song: Song,
+  opts: { metronome?: boolean } = {},
+): Schedule & { cues: RhythmCue[] } {
+  const ts = song.timeSignature;
+  const m = ticksPerMeasure(ts);
+  const spt = secondsPerTick(song.tempo);
+  const events: AudioEvent[] = [];
+  const cues: RhythmCue[] = [];
+  let at = 0;
+  songToSheet(song).forEach((sheetSection, si) => {
+    const section = song.sections[si];
+    sheetSection.lines.forEach((line, li) => {
+      const rhythm = section?.lineRhythms?.find((r) => r.line === li);
+      const length = rhythm ? rhythm.lengthTicks : barCount(line) * m;
+      for (let b = 0; b * m < length; b++) cues.push({ time: (at + b * m) * spt, section: si, line: li, bar: b });
+      if (rhythm) {
+        for (const e of buildRhythmSchedule(rhythm, song.tempo, ts).events)
+          events.push({ ...e, time: e.time + at * spt });
+      }
+      at += length;
+    });
+  });
+  if (opts.metronome) {
+    const beat = ticksPerBeat(ts);
+    for (let t = 0; t < at; t += beat) events.push({ kind: "click", time: t * spt, accent: t % m === 0 });
+  }
+  events.sort((a, b) => a.time - b.time);
+  return { events, chordStarts: [], duration: at * spt, cues };
 }
 
 /**
